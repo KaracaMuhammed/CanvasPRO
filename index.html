@@ -12,14 +12,14 @@
   /* ---------- COLORS (edit these to restyle everything) ---------- */
   :root {
     --bg: #f6f4ef; --dot: #d9d5c9; --card: #ffffff; --text: #26241f;
-    --muted: #8a867b; --accent: #3b6cf6; --border: #e2ded2;
+    --muted: #8a867b; --accent: #2f64e0; --link: #2f64e0; --border: #e2ded2;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #1b1a17; --dot: #34322c; --card: #262420; --text: #ece9e0;
-      --muted: #8f8b80; --accent: #7b9bff; --border: #3a372f;
+      --muted: #8f8b80; --accent: #7ea2ff; --link: #7ea2ff; --border: #3a372f;
     }
   }
   html, body { height: 100%; margin: 0; }
@@ -38,6 +38,7 @@
   .bar button { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
   .bar button:hover { border-color: var(--accent); }
   .bar small { color: var(--muted); }
+  #saveState { font-size: 12.5px; white-space: nowrap; } #saveState.ok { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: 5px; } #saveState svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; } #saveState.bad { color: #d9480f; font-weight: 600; }
 
   /* ---------- CANVAS (scrollable, dotted background) ---------- */
   .scroller { flex: 1; overflow: auto; }
@@ -54,10 +55,10 @@
   .body { padding: 8px 10px; white-space: pre-wrap; word-break: break-word; min-height: 24px; cursor: text; }
   .body.empty { color: var(--muted); }
   .done .body { text-decoration: line-through; opacity: .55; }
-  .body a { color: var(--accent); }
+  .body a { color: var(--link); }   /* web addresses are blue */
   textarea, input.link { width: 100%; box-sizing: border-box; background: transparent; color: var(--text);
     border: 0; outline: 0; font: inherit; resize: none; padding: 8px 10px; }
-  input.link { border-top: 1px solid var(--border); font-size: 13px; color: var(--accent); }
+  input.link { border-top: 1px solid var(--border); font-size: 13px; color: var(--link); }
   .card img { display: block; width: 100%; height: auto; }
   .card img.linked { cursor: pointer; }
   /* images embedded inside a note */
@@ -304,6 +305,71 @@
     transition: transform .12s; font: inherit; font-size: 12px; line-height: 1; color: var(--muted); background: transparent; }
   #hlBar button:hover { transform: scale(1.18); }
   #hlBar button.x { box-shadow: none; border: 1px solid var(--border); }
+
+  /* ---------- PREMIUM TOOLBAR LOOK (champagne-gold accent, quiet line icons, ink "Save version") ---------- */
+  .bar { padding: 12px 18px; gap: 10px; background: color-mix(in srgb, var(--card) 55%, var(--bg)); }
+  .bar button { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; padding: 7px 14px; font-weight: 500; letter-spacing: -.005em;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .15s, box-shadow .15s, transform .1s, background .15s; }
+  .bar button:hover { box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+  .bar button:active { transform: translateY(1px); }
+  .bar button svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .75; }
+  .bar button:hover svg, .bar button.on svg { opacity: 1; }
+  .bar .seggrp button, .bar .split button { box-shadow: none; }
+  .bar .seggrp button:hover, .bar .split button:hover { box-shadow: none; }
+  .split { border-color: var(--text); box-shadow: 0 4px 14px rgba(0,0,0,.14); }
+  .bar .split button { color: var(--text); }
+  .bar .split button + button { border-left: 1px solid color-mix(in srgb, var(--text) 25%, transparent); }
+  .bar .split button.main { background: var(--text); color: var(--bg); padding: 7px 18px; }
+  .bar .split button.main svg { stroke: var(--accent); opacity: 1; }
+  .bar .split button.main:hover { filter: none; background: color-mix(in srgb, var(--text) 88%, var(--accent)); }
+  #fileBtn, #fileBtn.on { border-color: var(--border); color: var(--text); background: var(--card); max-width: 340px; }   /* plain look, not highlighted */
+  #fileBtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  #fileBtn .fok { flex: none; font-weight: 600; color: var(--accent); font-size: 13px; display: inline-flex; } #fileBtn .fok svg { width: 15px; height: 15px; opacity: 1; stroke-width: 2; }
+
+  /* ---------- SELECTIONS ARE BLUE (selected cards and drawings, the drag rectangle, selected text) ---------- */
+  .card.sel { outline: 2px solid var(--link); outline-offset: 2px; }
+  #ink path.sel { filter: drop-shadow(0 0 3px var(--link)) drop-shadow(0 0 1px var(--link)); }
+  #marquee { border: 1.5px dashed var(--link); background: color-mix(in srgb, var(--link) 10%, transparent); }
+  ::selection { background: color-mix(in srgb, var(--link) 28%, transparent); }
+
+  /* ---------- CHECKBOXES ARE BLUE (checklist lines in notes, the note's own checkbox, the progress bar) ---------- */
+  .cb:hover { color: var(--link); }
+  .cb:hover::before { border-color: var(--link); }
+  .cb.on { color: var(--link); }
+  .cb.on::before { background: var(--link); border-color: var(--link); }
+  .prog i { background: linear-gradient(90deg, var(--link) var(--p), var(--border) var(--p)); }
+  .grip input[type="checkbox"], input[type="checkbox"] { accent-color: var(--link); }
+
+  /* ---------- ACTIVE STATES ARE BLUE (selected header buttons, status text, link symbols) ---------- */
+  .bar button.on { border-color: var(--link); color: var(--link); background: color-mix(in srgb, var(--link) 12%, var(--card)); }
+  #toolMenu button.sel { color: var(--link); background: color-mix(in srgb, var(--link) 14%, transparent); }
+  #saveState.ok { color: var(--link); }
+  #fileBtn .fok { color: var(--link); }
+
+  /* ---------- "Save version" button: ink with a blue bookmark, turns blue on hover ---------- */
+  .bar .split button.main svg { stroke: #8fb0ff; }
+  .bar .split button.main:hover { background: var(--link); color: #fff; }
+  .bar .split button.main:hover svg { stroke: #fff; }
+  .bar .split button:not(.main):hover { background: color-mix(in srgb, var(--link) 14%, transparent); color: var(--link); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bar .split button.main:hover { color: #0d1733; } :root:not([data-theme="light"]) .bar .split button.main:hover svg { stroke: #0d1733; } }
+
+  /* ---------- "Save version": solid blue button with a black icon ---------- */
+  .split { border-color: var(--link); box-shadow: 0 4px 14px color-mix(in srgb, var(--link) 30%, transparent); }
+  .bar .split button.main { background: var(--link); color: #fff; }
+  .bar .split button.main svg { stroke: #000; opacity: 1; }
+  .bar .split button.main:hover { background: color-mix(in srgb, var(--link) 85%, #000); color: #fff; }
+  .bar .split button.main:hover svg { stroke: #000; }
+  .bar .split button + button { border-left-color: var(--link); }
+  .bar .split #listBtn { color: var(--link); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bar .split button.main, :root:not([data-theme="light"]) .bar .split button.main:hover { color: #0d1733; }
+    :root:not([data-theme="light"]) .bar .split button.main:hover { background: color-mix(in srgb, var(--link) 85%, #fff); } }
+
+  /* "Save version" icon color: champagne gold on the blue (matches the logo); navy in dark mode where the button is light blue */
+  .bar .split button.main svg, .bar .split button.main:hover svg { stroke: #f6dc9b; stroke-width: 1.9; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bar .split button.main svg, :root:not([data-theme="light"]) .bar .split button.main:hover svg { stroke: #0d1733; } }
+  /* ---------- STATUS TEXT: quiet grey, like "Auto-saved ✓" ---------- */
+  #saveState, #saveState.ok { color: var(--muted); font-weight: 400; font-size: 13px; display: inline; }
+  #saveState.bad { color: #d9480f; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -346,8 +412,8 @@
         <button id="zoomOut" title="Zoom out">−</button><button id="zoomLbl" title="Reset to 100% (Ctrl + scroll also zooms)">100%</button><button id="zoomIn" title="Zoom in">+</button>
       </span>
       <span class="split">
-        <button id="listBtn" title="Saved versions: go back to one, or delete it">▾</button>
-        <button id="saveBtn" class="main" title="Save a copy of your canvas right now">💾 Save</button>
+        <button id="listBtn" title="Version history: go back to an earlier version, or delete versions">▾</button>
+        <button id="saveBtn" class="main" title="Your canvas already saves itself. This creates a restore point (a named version) that you can come back to later."></button>
       </span>
     </span>
     <input id="file" type="file" accept="image/*" hidden>
@@ -376,6 +442,19 @@ const CANVAS_ID = hashMatch ? hashMatch[1] : null;                      // null 
 const dbNameOf = id => id === "main" ? "canvas-todo" : "canvas-todo-" + id;
 const DB_NAME = dbNameOf(CANVAS_ID || "main");
 const KEY = "canvas-todo-v1";
+
+/* Header icons: thin line icons (SVG) in one style. Colors follow the text color. */
+const HI = {
+  snap:  '<svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/></svg>',
+  draw:  '<svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg>',
+  folder:'<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  file:  '<svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 19h14"/></svg>',
+  mark:  '<svg viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/></svg>',
+  link:  '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>'
+};
+const withIcon = (name, label) => HI[name] + "<span>" + label + "</span>";
+
 let items = [];
 // activeNote  = the note whose text you are currently typing in (pasted images go inside it)
 // pendingNote = the note whose 🖼 button was pressed (the chosen file goes inside it)
@@ -405,7 +484,15 @@ let db = null;                          // the open database (null = storage una
 const urlCache = {};                    // image id -> temporary URL used as <img src>
 const keep = new Set();                 // ids of pictures just added (protected from the clean-up below)
 const imgUrl = o => (o.img && urlCache[o.img]) || o.url || o.src || "";   // src = old format, still displayed
-const setStatus = t => { const el = document.getElementById("saveState"); if (el) el.textContent = t; };
+// The small status text next to the buttons. Saving is automatic, so the text says so clearly.
+const setStatus = t => {
+  const el = document.getElementById("saveState"); if (!el) return;
+  const ok = /^(Auto-saved|Updated)/.test(t);                          // saved / refreshed from another tab
+  const bad = /^\u26a0/.test(t);                                       // a warning
+  el.textContent = t;                                                  // plain quiet text, e.g. "Auto-saved ✓"
+  el.className = ok ? "ok" : bad ? "bad" : "";
+  el.title = "Your canvas saves itself after every change. You do not need to press anything.";
+};
 
 function openDb(name = DB_NAME) {
   return new Promise((res, rej) => {
@@ -1188,7 +1275,7 @@ setInterval(() => liveChips.forEach(paint => paint()), 30000);
 // Snap toggle button in the toolbar
 const snapBtn = document.getElementById("snapBtn");
 function updateSnapBtn() {
-  snapBtn.textContent = "🧲 Snap to grid: " + (snapOn ? "On" : "Off");
+  snapBtn.innerHTML = withIcon("snap", "Snap to grid: " + (snapOn ? "On" : "Off"));
   snapBtn.classList.toggle("on", snapOn);
 }
 snapBtn.onclick = () => {
@@ -1352,7 +1439,7 @@ const drawBtn = document.getElementById("drawBtn"), drawTools = document.getElem
 const penColor = document.getElementById("penColor"), penSize = document.getElementById("penSize");
 const penTool = document.getElementById("penTool"), undoBtn = document.getElementById("undoBtn"), clearBtn = document.getElementById("clearBtn");
 function updateDrawUi() {
-  drawBtn.textContent = "✏️ Draw: " + (drawOn ? "On" : "Off");
+  drawBtn.innerHTML = withIcon("draw", "Draw: " + (drawOn ? "On" : "Off"));
   drawBtn.classList.toggle("on", drawOn);
   drawTools.hidden = !drawOn;                           // pen tools only show in draw mode
   ink.classList.toggle("on", drawOn); ink.classList.toggle("erase", erasing);
@@ -1523,6 +1610,7 @@ let snaps = [];                                         // newest first: { id, n
 let curId = null;                                       // id of the version the canvas is based on ("you are here")
 let listPage = 0;                                       // page shown in the list (0 = the 15 newest)
 const saveBtn = document.getElementById("saveBtn"), listBtn = document.getElementById("listBtn");
+saveBtn.innerHTML = withIcon("mark", "Save version");
 const clone = o => JSON.parse(JSON.stringify(o));
 const sameAs = sn => JSON.stringify([sn.items, sn.strokes]) === JSON.stringify([items, strokes]);   // is the canvas identical to this version?
 const curSnap = () => snaps.find(sn => sn.id === curId);
@@ -1532,7 +1620,7 @@ const imageIds = list => { const ids = []; list.forEach(i => { if (i.img) ids.pu
 function updateSplit() {
   const c = curSnap();
   listBtn.textContent = c ? "\u25be v" + c.n + (sameAs(c) ? "" : "*") : "\u25be";
-  listBtn.title = c ? "You are on version " + c.n + (sameAs(c) ? "" : " (edited since)") + ". Click to see all saved versions." : "Saved versions: go back to one, or delete it";
+  listBtn.title = c ? "You are on version " + c.n + (sameAs(c) ? "" : " (edited since)") + ". Click to see all saved versions." : "Version history: go back to an earlier version, or delete versions";
 }
 async function persistSnaps() {
   clearTimeout(saveTimer); await flush();               // writes the versions together with the canvas (see STORAGE)
@@ -1589,7 +1677,7 @@ function renderList() {
   listPanel.innerHTML = "";
   const add = (tag, cls, text, parent = listPanel) => { const e = document.createElement(tag); e.className = cls; if (text) e.textContent = text; parent.appendChild(e); return e; };
   const head = add("div", "sh", "");
-  add("span", "", "Saved versions", head);
+  add("span", "", "Version history", head);
   const older = snaps.length - 1 - Math.max(0, snaps.findIndex(sn => sn.id === curId));
   if (older > 0) {                                      // the small "remove older versions" button
     const rm = add("button", "srm", "Remove " + older + " older", head);
@@ -1651,7 +1739,7 @@ saveBtn.onclick = async () => {
     } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); }
     updateFileBtn();
   }
-  saveBtn.textContent = "\u2713 Saved"; setTimeout(() => { saveBtn.textContent = "💾 Save"; }, 1500);
+  saveBtn.innerHTML = withIcon("check", "Version saved"); setTimeout(() => { saveBtn.innerHTML = withIcon("mark", "Save version"); }, 1800);
 };
 document.addEventListener("pointerdown", e => { if (!listPanel.hidden && !listPanel.contains(e.target) && !e.target.closest(".split")) closeList(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeList(); });
@@ -1927,9 +2015,9 @@ const FILE_TYPES = [{ description: "Canvas Todo", accept: { "application/json": 
 
 function updateFileBtn() {
   fileBtn.classList.toggle("on", !!fileHandle && !fileNeedsPermission && !fileErr);
-  if (!FS_OK) { fileBtn.textContent = "📁 File"; fileBtn.title = "Saving to a file needs Chrome, Edge or Opera"; return; }
-  if (!fileHandle) { fileBtn.textContent = "📁 Save to a file"; fileBtn.title = "Keep a copy of everything in a file on your computer"; return; }
-  fileBtn.textContent = "📁 " + fileHandle.name + (fileNeedsPermission ? " · reconnect" : fileErr ? " ⚠" : " ✓");
+  if (!FS_OK) { fileBtn.innerHTML = HI.folder; fileBtn.title = "Backing up to a file needs Chrome, Edge or Opera"; return; }
+  if (!fileHandle) { fileBtn.innerHTML = HI.folder; fileBtn.title = "Optional: also keep a backup copy in a file on your computer. It updates by itself after you choose where."; return; }
+  fileBtn.innerHTML = HI.folder + "<span>" + fileHandle.name.replace(/[<>&]/g, "") + "</span><b class='fok'>" + (fileNeedsPermission ? "reconnect" : fileErr ? "\u26a0" : HI.link) + "</b>";
   fileBtn.title = fileNeedsPermission ? "Click to allow saving to this file again"
                 : fileErr ? "Problem with the file: " + fileErr : "Saving automatically to " + fileHandle.name;
 }
@@ -2067,8 +2155,8 @@ function offerFile() {
   if (!FS_OK || fileHandle) return;
   try { if (localStorage.getItem("canvas-todo-nofile") === "1") return; } catch (e) {}   // you said "Not now" before
   const bar = document.createElement("div"); bar.id = "fileOffer";
-  const msg = document.createElement("span"); msg.textContent = "\u{1F4C1} Auto-save to a file on your computer is not on yet.";
-  const yes = document.createElement("button"); yes.textContent = "Choose where to save"; yes.className = "yes";
+  const msg = document.createElement("span"); msg.textContent = "Your canvas already saves itself in this browser. Want an extra backup file on your computer?";
+  const yes = document.createElement("button"); yes.textContent = "Choose a backup file"; yes.className = "yes";
   const no = document.createElement("button"); no.textContent = "Not now";
   yes.onclick = async () => { try { await chooseNewFile(); } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); } updateFileBtn(); };
   no.onclick = () => { try { localStorage.setItem("canvas-todo-nofile", "1"); } catch (e) {} bar.remove(); };
