@@ -1,0 +1,2264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Canvas Todo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* ---------- COLORS (edit these to restyle everything) ---------- */
+  :root {
+    --bg: #f6f4ef; --dot: #d9d5c9; --card: #ffffff; --text: #26241f;
+    --muted: #8a867b; --accent: #3b6cf6; --border: #e2ded2;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1b1a17; --dot: #34322c; --card: #262420; --text: #ece9e0;
+      --muted: #8f8b80; --accent: #7b9bff; --border: #3a372f;
+    }
+  }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;   /* smooth font (change "Inter" to try another) */ display: flex; flex-direction: column; }
+
+  /* ---------- TOOLBAR ---------- */
+  .bar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  #homeBtn { display: inline-flex; align-items: center; gap: 7px; } #homeBtn svg { flex: none; } #homeBtn:hover { color: var(--accent); }
+  @media (max-width: 560px) { #homeBtn span { display: none; } }   /* icon only on small screens */
+  #canvasName { flex: 1 1 120px; min-width: 0; box-sizing: border-box; text-align: center; font: inherit; font-size: 17px; font-weight: 650; color: var(--text);
+    background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 2px 8px; }
+  #canvasName:hover { border-color: var(--border); } #canvasName:focus { outline: none; border-color: var(--accent); background: var(--card); }
+  .bar h1 { font-size: 16px; margin: 0 8px 0 0; }
+  .bar button { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  .bar button:hover { border-color: var(--accent); }
+  .bar small { color: var(--muted); }
+
+  /* ---------- CANVAS (scrollable, dotted background) ---------- */
+  .scroller { flex: 1; overflow: auto; }
+  #board { position: relative; width: 3000px; height: 2000px;
+    background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 24px 24px; background-position: -12px -12px; }   /* shifted so the dots sit exactly on multiples of 24 (the snap points) */
+
+  /* ---------- CARDS (notes and images) ---------- */
+  .card { position: absolute; box-sizing: border-box; width: 240px; min-width: 140px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); resize: horizontal; overflow: hidden; }
+  .grip { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: grab; touch-action: none;
+    border-bottom: 1px solid var(--border); color: var(--muted); user-select: none; }
+  .grip .spacer { flex: 1; }
+  .grip button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; }
+  .body { padding: 8px 10px; white-space: pre-wrap; word-break: break-word; min-height: 24px; cursor: text; }
+  .body.empty { color: var(--muted); }
+  .done .body { text-decoration: line-through; opacity: .55; }
+  .body a { color: var(--accent); }
+  textarea, input.link { width: 100%; box-sizing: border-box; background: transparent; color: var(--text);
+    border: 0; outline: 0; font: inherit; resize: none; padding: 8px 10px; }
+  input.link { border-top: 1px solid var(--border); font-size: 13px; color: var(--accent); }
+  .card img { display: block; width: 100%; height: auto; }
+  .card img.linked { cursor: pointer; }
+  /* images embedded inside a note */
+  .inline-img { position: relative; padding: 0 10px 8px; }
+  .inline-img img { border-radius: 6px; }
+  .inline-img .rm { position: absolute; top: 6px; right: 16px; width: 22px; height: 22px; border: 0; border-radius: 50%;
+    background: rgba(0,0,0,.55); color: #fff; cursor: pointer; line-height: 1; }
+  .inline-img input.link { border: 1px solid var(--border); border-radius: 6px; margin-top: 4px; padding: 4px 8px; }
+
+  /* ---------- PREMIUM DEADLINE (edit colors / sizes here) ---------- */
+  .foot { padding: 7px 8px 8px; border-top: 1px solid var(--border); }
+  /* the chip: a progress ring + "time left" + date. --c is the state color */
+  .dl { --c: var(--muted); display: inline-flex; align-items: center; gap: 7px; max-width: 100%; box-sizing: border-box;
+    padding: 4px 11px 4px 6px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--c) 35%, var(--border));
+    background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+    transition: background .25s, border-color .25s, transform .15s; }
+  .dl:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--c) 18%, transparent); }
+  .dl .ring { width: 22px; height: 22px; flex: none; transform: rotate(-90deg); }
+  .dl .ring circle { fill: none; stroke-width: 3; }
+  .dl .ring .track { stroke: var(--border); }
+  .dl .ring .bar { stroke: var(--c); stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1), stroke .25s; }
+  .dl .t { font-weight: 650; color: var(--c); white-space: nowrap; }
+  .dl .d { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dl.none { border-style: dashed; }                 /* no deadline yet: quiet ghost chip */
+  .dl.none .t { font-weight: 500; color: var(--muted); }
+  .dl.ok   { --c: #22c55e; }                         /* plenty of time */
+  .dl.warn { --c: #f59e0b; }                         /* more than half used */
+  .dl.hot  { --c: #f97316; }                         /* almost due */
+  .dl.late { --c: #ef4444; }                         /* overdue */
+  .dl.done { --c: #22c55e; }                         /* task finished */
+  /* overdue cards get a soft pulsing red glow */
+  .card.overdue { animation: glow 2.4s ease-in-out infinite; border-color: #ef4444; }
+  @keyframes glow { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 0 0 0 rgba(239,68,68,.0); }
+                    50%     { box-shadow: 0 4px 18px rgba(239,68,68,.28), 0 0 0 3px rgba(239,68,68,.12); } }
+  /* the popover that opens under the chip */
+  #pop { position: fixed; z-index: 50; width: 240px; box-sizing: border-box; padding: 14px; border-radius: 16px;
+    background: var(--card); color: var(--text); border: 1px solid var(--border); font-size: 13px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
+  #pop[hidden] { display: none; }
+  @keyframes popin { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: none; } }
+  #pop .ph { font-weight: 650; margin-bottom: 10px; }
+  #pop .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #pop button { font: inherit; font-size: 12px; padding: 7px 8px; border-radius: 10px; cursor: pointer;
+    background: transparent; color: var(--text); border: 1px solid var(--border); transition: background .15s, border-color .15s; }
+  #pop button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #pop .pl { margin: 12px 0 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  #pop input { width: 100%; box-sizing: border-box; padding: 7px 8px; border-radius: 10px; font: inherit; font-size: 13px;
+    background: transparent; color: var(--text); border: 1px solid var(--border); color-scheme: light dark; }
+  #pop button.rm2 { width: 100%; margin-top: 10px; color: #ef4444; }
+  /* PRIORITIES: colored left edge on the card + a small badge in the header (edit the colors here) */
+  .card.prio-1 { border-left: 5px solid #3b82f6; }   /* low    = blue   */
+  .card.prio-2 { border-left: 5px solid #f59e0b; }   /* medium = orange */
+  .card.prio-3 { border-left: 5px solid #e5484d; }   /* high   = red    */
+  .grip button.pbtn { font-size: 11px; font-weight: 600; border-radius: 10px; padding: 1px 8px; border: 1px solid var(--border); color: var(--muted); }
+  .grip button.p1 { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  .grip button.p2 { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+  .grip button.p3 { background: #e5484d; border-color: #e5484d; color: #fff; }
+  /* SNAP toggle button (lit up when on) */
+  .bar button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+  /* FINISHED task: embedded images and video previews fade out (hover to peek at full strength) */
+  .inline-img img, .yt { transition: opacity .3s, filter .3s; }
+  .card.done .inline-img img, .card.done .yt { opacity: .35; filter: grayscale(.7); }
+  .card.done .inline-img img:hover, .card.done .yt:hover { opacity: .8; }
+  /* YOUTUBE preview: thumbnail + red play button, click opens the video */
+  .yt { position: relative; display: block; margin: 0 10px 8px; border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; }
+  .yt img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .yt .play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .yt .play::before { content: "▶"; width: 46px; height: 32px; line-height: 32px; text-align: center; border-radius: 9px;
+    background: #ff0000; color: #fff; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  .yt:hover .play::before { transform: scale(1.1); }
+  .yt .fb { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 8px 10px; color: #ccc; font-size: 12px;
+    background: linear-gradient(135deg, #1f1f1f, #444); }   /* shown only if the thumbnail can't load */
+  /* TOOLBAR extras: selects, color picker, drawing tools */
+  .bar select { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font: inherit; cursor: pointer; }
+  .bar input[type=color] { width: 36px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; }
+  #drawTools { display: inline-flex; gap: 8px; align-items: center; }
+  #drawTools[hidden] { display: none; }
+  /* DRAWING layer: an SVG under the cards. Pointer events only in draw mode, then it sits ON TOP of the cards. */
+  #ink { position: absolute; left: 0; top: 0; width: 3000px; height: 2000px; pointer-events: none; }
+  #ink.on { z-index: 20; pointer-events: auto; cursor: crosshair; touch-action: none; }
+  #ink.on.erase { cursor: cell; }
+  #ink path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  /* ---------- ZOOM: the stage has the scaled size, the board is scaled inside it ---------- */
+  #stage { position: relative; width: 3000px; height: 2000px; }
+  #board { transform-origin: 0 0; }
+  /* ---------- Segmented groups (zoom) and the SPLIT save button ---------- */
+  .rightbar { margin-left: auto; display: inline-flex; gap: 10px; align-items: center; }
+  .seggrp, .split { display: inline-flex; border-radius: 999px; overflow: hidden; border: 1px solid var(--border); background: var(--card); }
+  .bar .seggrp button, .bar .split button { border: 0; border-radius: 0; background: transparent; padding: 6px 12px; }
+  .bar .seggrp button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .bar .seggrp button + button { border-left: 1px solid var(--border); }
+  #zoomLbl { min-width: 56px; font-variant-numeric: tabular-nums; }
+  .split { border-color: var(--accent); box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 28%, transparent); }
+  .bar .split button { color: var(--accent); font-weight: 600; transition: background .15s, filter .15s; }
+  .bar .split button + button { border-left: 1px solid var(--accent); }
+  .bar .split #listBtn { padding: 6px 10px; }
+  .bar .split #listBtn:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .bar .split button.main { background: var(--accent); color: var(--card); padding: 6px 18px; }
+  .bar .split button.main:hover { filter: brightness(1.1); }
+  /* the dropdown list of saved versions */
+  #snapList { position: fixed; z-index: 50; width: 300px; max-height: 60vh; overflow-y: auto; box-sizing: border-box; padding: 8px;
+    border-radius: 16px; background: var(--card); color: var(--text); border: 1px solid var(--border); font-size: 13px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
+  #snapList[hidden] { display: none; }
+  #snapList .sh { padding: 6px 8px 8px; font-weight: 650; }
+  #snapList .empty { padding: 14px 8px; color: var(--muted); }
+  #snapList .srow { display: flex; align-items: center; gap: 4px; border-radius: 10px; }
+  #snapList .srow:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  #snapList button { font: inherit; background: none; border: 0; color: var(--text); cursor: pointer; }
+  #snapList .sgo { flex: 1; min-width: 0; text-align: left; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  #snapList .sgo small { color: var(--muted); }
+  #snapList .sdel { color: var(--muted); padding: 6px 10px; border-radius: 8px; }
+  #snapList .sdel:hover, #snapList .sdel.armed { color: #ef4444; }
+  /* ---------- TOASTS (the 5-second undo after deleting) ---------- */
+  #toasts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast { position: relative; overflow: hidden; display: flex; gap: 16px; align-items: center; padding: 11px 16px; border-radius: 12px;
+    background: #23221f; color: #fff; font-size: 13px; box-shadow: 0 8px 28px rgba(0,0,0,.35); animation: popin .16s ease-out; }
+  .toast button { background: none; border: 0; color: #9db4ff; font: inherit; font-weight: 650; cursor: pointer; }
+  .toast i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #9db4ff; animation: shrink linear forwards; }
+  @keyframes shrink { to { width: 0; } }
+  /* ---------- FREE TEXT: no card, just text. The header only shows on hover ---------- */
+  .card.free { background: transparent; box-shadow: none; border-color: transparent; min-width: 60px; }
+  .card.free:hover, .card.free:focus-within { border: 1px dashed var(--border); }
+  .card.free .grip { opacity: 0; border-bottom: 0; transition: opacity .15s; }
+  .card.free:hover .grip, .card.free:focus-within .grip { opacity: 1; }
+  .card.free .body, .card.free textarea { font-size: var(--fs, 22px); line-height: 1.3; }
+  .grip button.tsz { font-size: 12px; font-weight: 600; }
+  @media (hover: none) { .card.free .grip { opacity: 1; } }
+  /* ---------- Version list: header, "you are here", paging ---------- */
+  #snapList .sh { display: flex; justify-content: space-between; align-items: center; }
+  #snapList .srm { font-size: 11px; font-weight: 500; color: var(--muted); padding: 3px 8px; border-radius: 8px; }
+  #snapList .srm:hover { color: #ef4444; background: color-mix(in srgb, #ef4444 10%, transparent); }
+  #snapList .srow.cur { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+  #snapList .top { display: flex; align-items: center; }
+  #snapList .badge { font-style: normal; font-size: 10px; font-weight: 650; color: var(--accent); margin-left: 8px; }
+  #snapList .spage { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 2px; color: var(--muted); font-size: 12px; }
+  #snapList .spage button { padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border); }
+  #snapList .spage button:disabled { opacity: .35; cursor: default; }
+  /* ---------- Tool menu: icons and labels all aligned ---------- */
+  .bar #toolBtn { display: inline-flex; align-items: center; gap: 8px; }
+  .bar #toolBtn svg { width: 18px; height: 18px; flex: none; }
+  .bar #toolBtn .caret { font-size: 11px; opacity: .6; }
+  #toolMenu { position: fixed; z-index: 50; min-width: 176px; box-sizing: border-box; padding: 6px; border-radius: 14px;
+    background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
+  #toolMenu[hidden] { display: none; }
+  #toolMenu button { display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 9px;
+    background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  #toolMenu button svg { width: 18px; height: 18px; flex: none; }          /* same icon column on every row */
+  #toolMenu button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #toolMenu button.sel { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); font-weight: 600; }
+  /* ---------- "Add image" tile inside notes: looks like an empty picture, lights up on hover ---------- */
+  .addpic { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; box-sizing: border-box;
+    width: calc(100% - 20px); min-height: 78px; margin: 0 10px 8px; padding: 8px; border: 2px dashed var(--border); border-radius: 10px;
+    background: color-mix(in srgb, var(--muted) 8%, transparent); color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
+  .addpic svg { width: 28px; height: 28px; transition: transform .2s; }
+  .addpic .sub { font-size: 11px; font-weight: 400; opacity: .8; }
+  .addpic.compact { flex-direction: row; min-height: 46px; gap: 10px; }
+  .addpic.compact svg { width: 22px; height: 22px; }
+  .addpic.compact .sub { display: none; }
+  .addpic:hover, .card.dropping .addpic { border-style: solid; border-color: var(--accent); color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
+  .addpic:hover svg, .card.dropping .addpic svg { transform: scale(1.18) rotate(-5deg); }
+  .card.dropping { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* ---------- Move handle on pictures inside notes ---------- */
+  .imove { position: absolute; top: 6px; left: 16px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: rgba(0,0,0,.6); color: #fff; cursor: grab; touch-action: none; opacity: 0; transition: opacity .15s, transform .15s; }
+  .inline-img:hover .imove { opacity: 1; }
+  .imove:hover { transform: scale(1.1); }
+  @media (hover: none) { .imove { opacity: 1; } }
+  .inline-img.ins-before::before, .inline-img.ins-after::after { content: ""; position: absolute; left: 10px; right: 10px; height: 3px; border-radius: 2px; background: var(--accent); z-index: 3; }
+  .inline-img.ins-before::before { top: -3px; }
+  .inline-img.ins-after::after { bottom: 2px; }
+  .ghost { position: fixed; z-index: 100; width: 120px; height: auto; border-radius: 8px; opacity: .9; pointer-events: none; transform: rotate(-3deg);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  /* header icon that toggles the "Add image" field */
+  .grip button.addtoggle { display: flex; align-items: center; padding: 3px 5px; border-radius: 7px; transition: color .15s, background .15s; }
+  .grip button.addtoggle svg { width: 18px; height: 18px; }
+  .grip button.addtoggle:hover { color: var(--accent); }
+  .grip button.addtoggle.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  /* the Add image field is closed until the header icon is pressed; a line shrinks over its 5 seconds */
+  .addpic { position: relative; overflow: hidden; }
+  .addpic.closed { display: none; }
+  .addpic i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--accent); animation: shrink 5s linear forwards; }
+  /* the editor must be exactly as big as the text it replaces */
+  .card textarea { display: block; overflow: hidden; min-height: 0; }
+  /* ---------- File menu ---------- */
+  #fileMenu { position: fixed; z-index: 50; width: 290px; box-sizing: border-box; padding: 6px; border-radius: 14px;
+    background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
+  #fileMenu[hidden] { display: none; }
+  #fileMenu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; box-sizing: border-box; padding: 9px 10px; border: 0;
+    border-radius: 9px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  #fileMenu button small { color: var(--muted); font-size: 11px; }
+  #fileMenu button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .bar #fileBtn { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ---------- Checklists ---------- */
+  .cb { cursor: pointer; font-size: 1.2em; line-height: 1; color: var(--muted); user-select: none; transition: color .15s, transform .1s; }
+  .cb:hover { color: var(--accent); transform: scale(1.15); display: inline-block; }
+  .cb.on { color: var(--accent); }
+  .cbtxt.done { text-decoration: line-through; opacity: .55; }
+  .prog { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .prog i { width: 36px; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p), var(--border) var(--p)); }
+  .prog.all { color: #22c55e; }
+  .prog.all i { background: #22c55e; }
+  .grip button.copybtn { display: flex; align-items: center; padding: 3px 5px; border-radius: 7px; }
+  .grip button.copybtn svg { width: 18px; height: 18px; }
+  .grip button.copybtn:hover { color: var(--accent); }
+  /* picture that could only be kept as a link */
+  .linkonly { padding: 4px 10px; font-size: 11px; font-weight: 600; color: #b45309; background: color-mix(in srgb, #f59e0b 16%, transparent); }
+  /* offer to turn on auto-save to a file */
+  #fileOffer { position: fixed; z-index: 60; top: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    max-width: calc(100vw - 24px); box-sizing: border-box; padding: 10px 14px; border-radius: 14px; background: var(--card); color: var(--text);
+    border: 1px solid var(--accent); box-shadow: 0 12px 36px rgba(0,0,0,.25); font-size: 13px; animation: popin .2s ease-out; }
+  #fileOffer button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 9px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text); }
+  #fileOffer button.yes { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 600; }
+  /* header: the right-hand icons stay together and wrap to a second line when the note is narrow (never cut off) */
+  .grip { flex-wrap: wrap; row-gap: 2px; }
+  .grip .spacer { flex: 1 1 0; min-width: 0; }
+  .grip .acts { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
+  /* checkboxes drawn by the page (no special font needed, so they look the same on phones) */
+  .cb { position: relative; display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.22em; overflow: hidden; white-space: nowrap;
+    text-indent: 300%; color: transparent; font-size: 1em; cursor: pointer; user-select: none; transform: none; }
+  .cb::before { content: ""; position: absolute; inset: 1px; box-sizing: border-box; border: 2px solid var(--muted); border-radius: 5px; transition: border-color .15s, background .15s; }
+  .cb:hover::before { border-color: var(--accent); }
+  .cb.on::before { background: var(--accent); border-color: var(--accent); }
+  .cb.on::after { content: ""; position: absolute; left: 36%; top: 17%; width: 24%; height: 50%; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+  /* ---------- Selection ---------- */
+  .card.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #ink path.sel { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 1px var(--accent)); }
+  #marquee { position: absolute; display: none; z-index: 15; pointer-events: none; box-sizing: border-box;
+    border: 1.5px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 3px; }
+  /* ---------- Highlighted text ---------- */
+  .hm { font-size: 0; }                                  /* the ==y: marks: present in the text, invisible on the page */
+  mark { color: inherit; border-radius: 3px; padding: 0 2px; margin: 0 -2px; }
+  mark.hl-y { background: rgba(255, 214, 10, .5); }
+  mark.hl-g { background: rgba(52, 199, 89, .4); }
+  mark.hl-b { background: rgba(10, 132, 255, .35); }
+  mark.hl-p { background: rgba(255, 107, 157, .4); }
+  mark.hl-o { background: rgba(255, 159, 10, .45); }
+  #hlBar { position: fixed; z-index: 70; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.25); animation: popin .12s ease-out; }
+  #hlBar[hidden] { display: none; }
+  #hlBar button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--border); cursor: pointer;
+    transition: transform .12s; font: inherit; font-size: 12px; line-height: 1; color: var(--muted); background: transparent; }
+  #hlBar button:hover { transform: scale(1.18); }
+  #hlBar button.x { box-shadow: none; border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <!-- <h1>Canvas Todo</h1> -->
+    <button id="homeBtn" title="All canvases (home)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Canvases</span></button>
+    <button id="addNote">+ Note</button>
+    <button id="addImage">+ Image</button>
+    <button id="addText" title="Free text on the canvas, no card">T Text</button>
+    <!-- "Paste note" button (hidden for now: remove the comment marks to show it again; Ctrl+V still pastes a copied note)
+    <button id="pasteNoteBtn" hidden title="Paste the note you copied">📋 Paste note</button>
+    -->
+    <button id="snapBtn" title="Make cards click into place on the grid dots"></button>
+    <select id="gridSize" title="Grid size (the spacing of the dots and of the snapping)">
+      <option value="12">Grid: fine</option>
+      <option value="24">Grid: medium</option>
+      <option value="48">Grid: large</option>
+      <option value="72">Grid: x-large</option>
+    </select>
+    <button id="drawBtn" title="Draw on the canvas"></button>
+    <span id="drawTools" hidden>
+      <input type="color" id="penColor" value="#ff0040" title="Pen color">
+      <select id="penSize" title="Pen size">
+        <option value="2">Thin</option><option value="5" selected>Medium</option><option value="10">Thick</option>
+      </select>
+      <input type="hidden" id="penTool" value="pen">
+      <button id="toolBtn" type="button" title="Drawing tool"></button>
+      <button id="undoBtn" title="Remove the last stroke">↩ Undo</button>
+      <button id="clearBtn" title="Erase the whole drawing">Clear</button>
+    </span>
+    <!-- Hint text (hidden for now: remove the comment marks around it to show it again)
+    <small>Double-click: new note · Ctrl+scroll: zoom · paste or drop images anywhere</small>
+    -->
+    <!-- Canvas title: fills the space between the last toolbar button and the "Auto-saved" text, text centered -->
+    <input id="canvasName" title="Name of this canvas (click to rename)" placeholder="Canvas name" maxlength="60" spellcheck="false">
+    <span class="rightbar">
+      <small id="saveState"></small>
+      <button id="fileBtn" title="Keep a copy of everything in a file on your computer"></button>
+      <span class="seggrp">
+        <button id="zoomOut" title="Zoom out">−</button><button id="zoomLbl" title="Reset to 100% (Ctrl + scroll also zooms)">100%</button><button id="zoomIn" title="Zoom in">+</button>
+      </span>
+      <span class="split">
+        <button id="listBtn" title="Saved versions: go back to one, or delete it">▾</button>
+        <button id="saveBtn" class="main" title="Save a copy of your canvas right now">💾 Save</button>
+      </span>
+    </span>
+    <input id="file" type="file" accept="image/*" hidden>
+  </div>
+  <div class="scroller" id="scroller"><div id="stage"><div id="board"></div></div></div>
+
+<script>
+/* =====================================================================
+   DATA MODEL
+   items = list of cards. Each card is a plain object:
+   { id, type: "note" | "image", x, y, w, text, done, src, link,
+     deadline (ms timestamp, optional), dlStart (ms when the deadline was set) }
+   - note  : a todo line (text + done checkbox)
+   - image : src is a data: URL, link is the URL opened on click
+   ===================================================================== */
+/* =====================================================================
+   SEVERAL CANVASES
+   Every canvas has its OWN database (so they can never mix). The address says which one is open:
+     page.html          -> the home screen with all canvases
+     page.html#c=ID     -> the canvas with that ID
+   The old single canvas keeps the id "main" and its old database name, so nothing is lost.
+   The names + preview pictures live in one small extra database ("canvas-todo-home").
+   ===================================================================== */
+const hashMatch = location.hash.match(/^#c=([\w-]+)$/);
+const CANVAS_ID = hashMatch ? hashMatch[1] : null;                      // null = home screen
+const dbNameOf = id => id === "main" ? "canvas-todo" : "canvas-todo-" + id;
+const DB_NAME = dbNameOf(CANVAS_ID || "main");
+const KEY = "canvas-todo-v1";
+let items = [];
+// activeNote  = the note whose text you are currently typing in (pasted images go inside it)
+// pendingNote = the note whose 🖼 button was pressed (the chosen file goes inside it)
+let activeNote = null, pendingNote = null;
+// liveChips = one small "repaint" function per deadline chip; refreshed every 30 s so the countdown stays live
+let liveChips = [];
+// Priority levels stored on each note as a number 0-3 (item.priority). Labels shown on the badge:
+const PRIORITY_LABELS = ["Priority", "Low", "Medium", "High"];
+
+// SNAP TO GRID: when on, cards jump to the dots of the background (the dots are 24px apart)
+let GRID = 24;                                 // grid spacing in px, changeable from the toolbar (saved)
+try { GRID = +localStorage.getItem("canvas-todo-grid") || 24; } catch (e) {}
+let snapOn = false;
+try { snapOn = localStorage.getItem("canvas-todo-snap") === "1"; } catch (e) {}
+const snapW = w => Math.max(144, Math.round(w / GRID) * GRID);   // widths snap too (never narrower than 144px)
+const snap = v => snapOn ? Math.round(v / GRID) * GRID : v;   // nearest grid point (or unchanged when off)
+
+// --- Load / save in the browser (wrapped in try/catch: storage can fail) ---
+/* =====================================================================
+   STORAGE (IndexedDB) - replaces the old 5 MB localStorage
+   Database "canvas-todo" with two stores:
+     "kv"     : key -> value        ("items" = all the cards, "strokes" = the drawing)
+     "images" : image id -> Blob    (pictures are kept as real image files, not as text)
+   Cards point to their pictures by id (item.img, or image.img for pictures inside a note).
+   ===================================================================== */
+let db = null;                          // the open database (null = storage unavailable)
+const urlCache = {};                    // image id -> temporary URL used as <img src>
+const keep = new Set();                 // ids of pictures just added (protected from the clean-up below)
+const imgUrl = o => (o.img && urlCache[o.img]) || o.url || o.src || "";   // src = old format, still displayed
+const setStatus = t => { const el = document.getElementById("saveState"); if (el) el.textContent = t; };
+
+function openDb(name = DB_NAME) {
+  return new Promise((res, rej) => {
+    const rq = indexedDB.open(name, 1);
+    rq.onupgradeneeded = () => { rq.result.createObjectStore("kv"); rq.result.createObjectStore("images"); };
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  });
+}
+// Tiny helpers: run one request in its own transaction and wait for the result
+const dbReq = (store, mode, make) => new Promise((res, rej) => {
+  const t = db.transaction(store, mode), r = make(t.objectStore(store));
+  t.oncomplete = () => res(r.result); t.onerror = t.onabort = () => rej(t.error);
+});
+const dbGet  = (s, k)    => dbReq(s, "readonly",  st => st.get(k));
+const dbPut  = (s, k, v) => dbReq(s, "readwrite", st => st.put(v, k));
+const dbDel  = (s, k)    => dbReq(s, "readwrite", st => st.delete(k));
+const dbKeys = s         => dbReq(s, "readonly",  st => st.getAllKeys());
+
+// Store one picture (a Blob) and return its id
+async function putImage(blob) {
+  const id = uid();
+  urlCache[id] = URL.createObjectURL(blob); keep.add(id);
+  try { await dbPut("images", id, blob); } catch (e) { setStatus("⚠ Not saved"); }
+  return id;
+}
+
+// save() is called everywhere after a change. It waits 0.3 s (so dragging doesn't write non-stop), then flush() writes.
+let saveTimer = null;
+function save() { setStatus("Saving…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); }
+
+/* =====================================================================
+   SEVERAL TABS AT ONCE
+   Before, every tab wrote ITS OWN copy of everything, so a tab that had been open for a while
+   overwrote what you did in a newer tab. Now:
+   - every write has a revision number (myRev, a time stamp);
+   - before writing, a tab first MERGES what other tabs saved (mergeList): their changes are kept,
+     only what you changed in this tab is applied on top, and what you deleted stays deleted;
+   - tabs tell each other about every save (BroadcastChannel) and update live;
+   - a tab refreshes itself when you come back to it.
+   ===================================================================== */
+let myRev = 0;                                           // revision of the data this tab is based on
+let base = { items: new Map(), strokes: new Map(), snaps: new Map() };   // what the database had at our last read/write: id -> signature
+const sigJson = x => JSON.stringify(x);
+const sigSnap = x => x.id + "|" + x.auto + "|" + x.n;    // saved versions never change, except the auto flag and the number
+const mkBase = (list, sig) => new Map(list.map(x => [x.id, sig(x)]));
+function setBase(i, st, n) { base = { items: mkBase(i, sigJson), strokes: mkBase(st, sigJson), snaps: mkBase(n, sigSnap) }; }
+// dbList = what the database has now, local = what this tab has, baseMap = what the database had when we last looked.
+// Result: the database list, plus the changes made in THIS tab (new or edited elements), minus what this tab deleted.
+function mergeList(dbList, local, baseMap, sig) {
+  const localIds = new Set(local.map(x => x.id));
+  const out = dbList.filter(d => !(baseMap.has(d.id) && !localIds.has(d.id)));   // deleted in this tab: drop it
+  const at = new Map(out.map((d, i) => [d.id, i]));
+  local.forEach(x => {
+    if (baseMap.get(x.id) === sig(x)) return;            // not touched in this tab: the database version wins
+    if (at.has(x.id)) out[at.get(x.id)] = x; else { at.set(x.id, out.length); out.push(x); }   // edited or new here
+  });
+  return out;
+}
+// Take in what another tab saved (returns true if something new was merged in)
+async function pullFromDb() {
+  const rev = (await dbGet("kv", "rev")) || 0;
+  if (rev <= myRev) return false;
+  const dbI = (await dbGet("kv", "items")) || [], dbS = (await dbGet("kv", "strokes")) || [], dbN = (await dbGet("kv", "snapshots")) || [];
+  items = mergeList(dbI, items, base.items, sigJson);
+  strokes = mergeList(dbS, strokes, base.strokes, sigJson);
+  snaps = mergeList(dbN, snaps, base.snaps, sigSnap).sort((a, b) => b.date - a.date);
+  if (curId && !snaps.some(x => x.id === curId)) curId = null;
+  setBase(dbI, dbS, dbN); myRev = rev;
+  for (const k of await dbKeys("images")) if (!urlCache[k]) urlCache[k] = URL.createObjectURL(await dbGet("images", k));   // pictures added in other tabs
+  return true;
+}
+// Other tabs: live update (skipped while you type or draw here: your next save merges anyway)
+async function syncNow() {
+  if (!db || activeNote || current || erasingNow) return;
+  try { if (await pullFromDb()) { drawAll(); render(); updateSplit(); setStatus("Updated from another tab ✓"); } } catch (e) {}
+}
+const chan = "BroadcastChannel" in window ? new BroadcastChannel("canvas-todo-" + (CANVAS_ID || "home")) : null;
+if (chan) chan.onmessage = () => syncNow();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) syncNow(); });
+window.addEventListener("focus", syncNow);
+
+// flush() writes everything. Calls are queued one after the other so two writes never overlap.
+let flushChain = Promise.resolve();
+const flush = () => (flushChain = flushChain.then(doFlush, doFlush));
+async function doFlush() {
+  if (!db) return setStatus("⚠ Not saved (storage unavailable)");
+  try {
+    const pulled = await pullFromDb();                   // 1) first take in what other tabs saved
+    myRev = Math.max(Date.now(), myRev + 1);             // 2) then write, with a newer revision
+    await dbPut("kv", "items", items);
+    await dbPut("kv", "strokes", strokes);
+    await dbPut("kv", "snapshots", snaps);
+    await dbPut("kv", "currentVersion", curId);
+    await dbPut("kv", "rev", myRev);
+    setBase(items, strokes, snaps);
+    if (chan) chan.postMessage({ rev: myRev });          // 3) tell the other tabs
+    // Clean-up: delete stored pictures that no card uses anymore
+    const used = new Set();
+    const mark = i => { if (i.img) used.add(i.img); (i.images || []).forEach(m => m.img && used.add(m.img)); };
+    items.forEach(mark);
+    snaps.forEach(sn => sn.items.forEach(mark));      // pictures used by saved versions must be kept too
+    keep.forEach(k => used.has(k) && keep.delete(k));
+    for (const k of await dbKeys("images")) {
+      if (used.has(k) || keep.has(k) || !urlCache[k]) continue;   // !urlCache: added by another tab that this tab has not seen yet, so leave it
+      await dbDel("images", k); URL.revokeObjectURL(urlCache[k]); delete urlCache[k];
+    }
+    setStatus("Auto-saved ✓"); updateSplit();
+    queueFileWrite();                                    // also keep the file on your computer up to date (if you linked one)
+    queueMeta();                                         // refresh the preview picture on the home screen
+    if (pulled && !activeNote && !current && !erasingNow) { drawAll(); render(); }   // something from another tab arrived
+  } catch (e) { setStatus("⚠ Not saved"); }
+}
+
+// Turns a "data:image/...;base64,..." text into a Blob (used for old data and for backup files)
+function dataUrlToBlob(u) {
+  const [head, b64] = u.split(","), mime = head.match(/:(.*?);/)[1], bin = atob(b64), a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return new Blob([a], { type: mime });
+}
+
+// Gives every card picture its own stored Blob (items coming from the old text format or from a backup file)
+async function moveImagesToStore(list) {
+  for (const it of list) {
+    if (it.src) { it.img = await putImage(dataUrlToBlob(it.src)); delete it.src; }
+    for (const im of it.images || []) if (im.src) { im.img = await putImage(dataUrlToBlob(im.src)); delete im.src; }
+  }
+}
+// First start with the new storage: copy what the old localStorage version had saved
+async function migrateOld() {
+  let old = [];
+  try { old = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) {}
+  await moveImagesToStore(old);
+  items = old;                          // (the old drawing was already read into `strokes`)
+  save();
+}
+
+// Starts the app: open the database, load everything, draw the canvas
+async function boot() {
+  try { db = await openDb(); try { navigator.storage.persist(); } catch (e) {} }   // persist() asks the browser not to evict our data
+  catch (e) { db = null; setStatus("⚠ Storage unavailable"); }
+  if (db) {
+    try {
+      const saved = await dbGet("kv", "items");
+      if (saved) { items = saved; strokes = (await dbGet("kv", "strokes")) || []; }
+      else if (CANVAS_ID === "main") await migrateOld();   // old localStorage data belongs to the first canvas only: new canvases start empty
+      migrateChecks(items);                                    // old checklist characters -> plain "[ ]" / "[x]"
+      snaps = (await dbGet("kv", "snapshots")) || [];   // saved versions for the Save / list button
+      curId = (await dbGet("kv", "currentVersion")) || null;   // the version the canvas is based on
+      let m = Math.max(0, ...snaps.map(sn => sn.n || 0));      // old saves without a number get one (oldest = 1)
+      [...snaps].reverse().forEach(sn => { if (!sn.n) sn.n = ++m; });
+      updateSplit();
+      myRev = (await dbGet("kv", "rev")) || 0; setBase(items, strokes, snaps);   // the revision this tab starts from
+      for (const k of await dbKeys("images")) urlCache[k] = URL.createObjectURL(await dbGet("images", k));
+      setStatus("Auto-saved ✓");
+    } catch (e) { setStatus("⚠ Could not read saved data"); }
+  } else {                              // no database: fall back to the old localStorage so nothing looks lost
+    try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
+  }
+  drawAll(); render();
+  await initMeta();                     // name + preview of this canvas for the home screen
+  setTimeout(() => queueMeta(true), 1500);   // first preview picture once everything is drawn
+  await initFile();                     // reconnect to the file on your computer (if you linked one)
+  offerFile();                          // no file yet: offer to choose one (one click)
+}
+
+// (save() now lives in the STORAGE section above)
+
+const board = document.getElementById("board");
+const scroller = document.getElementById("scroller");
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+/* ---------- Helpers ---------- */
+// Escape text so it is safe to inject as HTML
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Turn any http(s) URL inside text into a clickable link
+const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+// Add https:// if the user typed "example.com"
+const fixUrl = u => { u = u.trim(); return !u || /^https?:\/\//i.test(u) ? u : "https://" + u; };
+
+/* ---------- Add cards ---------- */
+function addNote(x, y) {
+  // Default position: top-left of what you currently see
+  x = x ?? (scroller.scrollLeft + 40 + Math.random() * 80) / zoom;
+  y = y ?? (scroller.scrollTop + 40 + Math.random() * 80) / zoom;
+  x = snap(x); y = snap(y);                      // new notes also land on a grid point when snapping is on
+  // images: pictures embedded INSIDE the note, each { src, link }
+  const item = { id: uid(), type: "note", x, y, w: 240, text: "", done: false, images: [], priority: 0 };
+  items.push(item); save(); render(item.id);   // render + open editor
+}
+async function addImage(blob, x, y, url) {
+  // blob = the picture (stored in its own store). url = only used when a link could not be downloaded.
+  const img = blob ? await putImage(blob) : undefined;
+  if (x === undefined) { x = (scroller.scrollLeft + 60) / zoom; y = (scroller.scrollTop + 60) / zoom; }
+  items.push({ id: uid(), type: "image", x: snap(x), y: snap(y), w: 240, img, url, link: "", text: "" });
+  save(); render();
+}
+// Read an image file, shrink it (max 700px) so storage stays small, return it as a Blob (a real image file)
+function fileToBlob(file) {
+  return new Promise(res => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 700 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = img.width * k; c.height = img.height * k;
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); c.toBlob(res, "image/jpeg", 0.8);
+    };
+    img.src = url;
+  });
+}
+
+/* ---------- Rendering ---------- */
+// Redraws every card. If editId is given, that card's text opens in edit mode.
+let rendering = false;
+function render(editId) {
+  if (rendering) return;                                // removing a card that is being edited fires its "blur", which would redraw again
+  rendering = true;
+  try {
+    board.querySelectorAll(".card").forEach(c => c.remove());   // remove only the cards (the drawing layer stays)
+    activeNote = null;                                  // the editor is gone, so nothing is being edited any more
+    liveChips = [];
+    items.forEach(item => board.appendChild(makeCard(item, item.id === editId)));
+  } finally { rendering = false; }
+}
+
+/* ---------- Checklists inside a note ----------
+   A line that starts with "[ ] " (empty box) or "[x] " (ticked box) is a checklist item.
+   Type "[] " at the start of a line to make one. The text is plain ASCII, so it works on every phone and keyboard;
+   the page draws the real boxes itself (CSS), so no special font is needed.
+   (Older notes that used the characters ☐ / ☑ are still understood and are converted when the page opens.) */
+function parseCheck(ln) {
+  const m = ln.match(/^(\[[ xX]\]|[☐☑]) (.*)$/);
+  if (!m) return null;
+  return { mark: m[1], on: m[1] === "☑" || /^\[[xX]\]$/.test(m[1]), rest: m[2] };
+}
+function countChecks(text) {
+  let total = 0, done = 0;
+  (text || "").split("\n").forEach(l => { const c = parseCheck(l); if (c && /\S/.test(c.rest)) { total++; if (c.on) done++; } });
+  return { total, done };
+}
+// The text of a note as HTML: links, and clickable boxes. The characters stay exactly the same, only wrapped.
+function renderBody(text) {
+  return text.split("\n").map((ln, i) => {
+    const c = parseCheck(ln);
+    if (!c) return fmt(ln);
+    return '<span class="cb' + (c.on ? " on" : "") + '" data-line="' + i + '" title="Click to tick / untick">' + c.mark + '</span> <span class="cbtxt' + (c.on ? " done" : "") + '">' + fmt(c.rest) + '</span>';
+  }).join("\n");
+}
+function toggleCheck(item, n) {                          // tick or untick line n
+  const lines = item.text.split("\n"), c = parseCheck(lines[n] || "");
+  if (!c) return;
+  lines[n] = (c.on ? "[ ] " : "[x] ") + c.rest;
+  item.text = lines.join("\n"); save(); render();
+}
+function migrateChecks(list) {                           // old ☐ / ☑ lines -> "[ ]" / "[x]"
+  list.forEach(i => { if (i.text && /[☐☑]/.test(i.text)) i.text = i.text.split("\n").map(l => l.replace(/^☐ /, "[ ] ").replace(/^☑ /, "[x] ")).join("\n"); });
+}
+
+/* ---------- Copy and paste notes ----------
+   The copy icon in a note's header remembers the whole note (text, priority, deadline, pictures).
+   Then Ctrl+V on the canvas (or the "Paste note" button at the top, handy on a phone) puts a copy where the pointer is. */
+const NOTECLIP_KEY = "canvas-todo-noteclip";
+const pasteNoteBtn = document.getElementById("pasteNoteBtn");
+function readNoteClip() { try { return JSON.parse(localStorage.getItem(NOTECLIP_KEY)); } catch (e) { return null; } }
+function updatePasteBtn() { if (pasteNoteBtn) pasteNoteBtn.hidden = !readNoteClip(); }   // (the button is commented out in the page for now)
+// Same text on both sides, whatever the system did to it (Windows turns "\n" into "\r\n", some apps trim or change spaces)
+const normClip = t => (t || "").replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
+// Write text to the system clipboard. The classic way is tried first (works everywhere after a click, even on a local file).
+async function writeClip(text) {
+  try {
+    const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy"); ta.remove();
+    if (ok) return true;
+  } catch (e) {}
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+}
+function copyNote(item) {
+  const label = (item.text || "").trim() || "(note)";
+  try { localStorage.setItem(NOTECLIP_KEY, JSON.stringify({ label, data: item })); } catch (e) {}
+  writeClip(label);                                              // puts the note text in the system clipboard: this is how Ctrl+V recognises the note
+  updatePasteBtn();
+  toast("Note copied. Press Ctrl+V on the canvas to paste it.", "OK", 3500, () => {});
+  // Pictures live in THIS canvas's database, so we also put them inside the clip: pasting into ANOTHER canvas works too
+  (async () => {
+    const blobs = {};
+    for (const id of [item.img, ...(item.images || []).map(m => m.img)].filter(Boolean)) {
+      try { const b = await dbGet("images", id); if (b) blobs[id] = await blobToDataUrl(b); } catch (e) {}
+    }
+    if (Object.keys(blobs).length) { try { localStorage.setItem(NOTECLIP_KEY, JSON.stringify({ label, data: item, blobs })); } catch (e) {} }   // too big for localStorage: same-canvas paste still works
+  })();
+}
+async function pasteNote(x, y) {
+  const clip = readNoteClip(); if (!clip) return;
+  for (const id of Object.keys(clip.blobs || {})) {              // pictures that come from another canvas: store them here first
+    if (urlCache[id]) continue;
+    try { const b = dataUrlToBlob(clip.blobs[id]); urlCache[id] = URL.createObjectURL(b); keep.add(id); await dbPut("images", id, b); } catch (e) {}
+  }
+  const n = JSON.parse(JSON.stringify(clip.data));       // a real copy: new id, same pictures (they are shared, not duplicated)
+  n.id = uid(); n.x = snap(Math.max(0, x)); n.y = snap(Math.max(0, y));
+  items.push(n); save(); render();
+}
+if (pasteNoteBtn) pasteNoteBtn.onclick = () => pasteNote((scroller.scrollLeft + 60) / zoom + Math.random() * 60, (scroller.scrollTop + 60) / zoom + Math.random() * 60);
+updatePasteBtn();
+
+function makeCard(item, editing) {
+  const el = document.createElement("div");
+  el.className = "card" + (item.done ? " done" : "") + (item.priority ? " prio-" + item.priority : "") + (item.type === "text" ? " free" : "") + (sel.items.has(item.id) ? " sel" : "");
+  el.style.left = item.x + "px"; el.style.top = item.y + "px"; el.style.width = item.w + "px";
+  if (item.type === "text") el.style.setProperty("--fs", (item.size || 22) + "px");
+  el.dataset.id = item.id;                              // lets drag & drop find which card is under the pointer
+  if (item.type === "note") {                           // drop a picture file onto a note = it goes inside that note
+    el.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes("Files")) { e.preventDefault(); el.classList.add("dropping"); } };
+    el.ondragleave = e => { if (!el.contains(e.relatedTarget)) el.classList.remove("dropping"); };
+    el.ondrop = async e => {
+      el.classList.remove("dropping");
+      const files = [...(e.dataTransfer.files || [])].filter(f => f.type.startsWith("image/"));
+      if (!files.length) return;                        // not a file (e.g. an image link): the canvas handles it
+      e.preventDefault(); e.stopPropagation();
+      for (const f of files) await addImageToNote(item, await fileToBlob(f));
+    };
+  }   // font size of free text
+
+  // Header: drag handle (+ checkbox for notes) + delete button
+  const grip = document.createElement("div");
+  grip.className = "grip";
+  if (item.type === "note") {
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = item.done;
+    cb.onchange = () => { item.done = cb.checked; save(); render(); };
+    grip.appendChild(cb);
+    // Priority badge: each click cycles none -> Low -> Medium -> High -> none
+    const pr = document.createElement("button");
+    const level = item.priority || 0;                 // older notes have no priority yet = 0
+    pr.className = "pbtn p" + level;
+    pr.textContent = PRIORITY_LABELS[level];
+    pr.title = "Click to change the priority";
+    pr.onclick = () => { item.priority = (level + 1) % 4; save(); render(); };
+    grip.appendChild(pr);
+    // Progress of the checklist: "2/5" with a small bar
+    const ck = countChecks(item.text);
+    if (ck.total) {
+      const pg = document.createElement("span");
+      pg.className = "prog" + (ck.done === ck.total ? " all" : "");
+      pg.title = ck.done + " of " + ck.total + " done";
+      pg.innerHTML = '<i style="--p:' + Math.round(100 * ck.done / ck.total) + '%"></i><b>' + ck.done + "/" + ck.total + "</b>";
+      grip.appendChild(pg);
+    }
+  }
+  grip.insertAdjacentHTML("beforeend", '<span class="spacer"></span>');
+  const acts = document.createElement("span"); acts.className = "acts";   // the icons on the right (copy, image, delete) stay together
+  // Free text: A- / A+ buttons change the font size
+  if (item.type === "text") {
+    [["A−", -4], ["A+", 4]].forEach(([label, d]) => {
+      const b = document.createElement("button"); b.className = "tsz"; b.textContent = label; b.title = "Text size";
+      b.onclick = () => { item.size = Math.max(10, Math.min(120, (item.size || 22) + d)); save(); render(); };
+      acts.appendChild(b);
+    });
+  }
+  const del = document.createElement("button");
+  del.textContent = "×"; del.title = "Delete";
+  del.onclick = () => removeItem(item);   // deleting can be undone for 5 seconds
+  // Notes: a grey image icon in the header opens the "Add image" field for 5 seconds (see setAddField)
+  if (item.type === "note") {
+    const tg = document.createElement("button");
+    tg.className = "addtoggle" + ((addUntil[item.id] || 0) > Date.now() ? " on" : "");   // grey by default, blue only while the field is open
+    tg.innerHTML = ICON_IMAGE;
+    tg.title = "Add an image (the field opens for 5 seconds)";
+    tg.onclick = () => setAddField(item, !((addUntil[item.id] || 0) > Date.now()));   // opens for 5 s (or closes it right away if it is open)
+    // copy icon (next to the image icon): copies the whole note, see "Copy and paste notes"
+    const cp = document.createElement("button"); cp.className = "copybtn"; cp.innerHTML = ICON_COPY; cp.title = "Copy this note (then Ctrl+V on the canvas)";
+    cp.onclick = () => copyNote(item);
+    acts.appendChild(cp);
+    acts.appendChild(tg);
+  }
+  acts.appendChild(del);
+  grip.appendChild(acts);
+  el.appendChild(grip);
+  enableDrag(el, grip, item);
+  // Pressing a header button must not take the focus away from the note you are typing in
+  // (losing focus redraws the card and the click would be lost)
+  grip.addEventListener("mousedown", e => { if (e.target.closest("button, input")) e.preventDefault(); });
+
+  // Images: picture (click = open link) + link field
+  if (item.type === "image") {
+    const img = document.createElement("img");
+    img.src = imgUrl(item);
+    if (item.link) { img.classList.add("linked"); img.title = item.link; }
+    img.onclick = () => item.link && window.open(item.link, "_blank", "noopener");
+    el.appendChild(img);
+    if (!item.img && item.url) {                         // a picture that could not be downloaded: say it clearly
+      const lo = document.createElement("div"); lo.className = "linkonly"; lo.textContent = "Link only · not saved"; el.appendChild(lo);
+    }
+  }
+
+  // Text area: shows linkified text; click to edit
+  const body = document.createElement("div");
+  body.className = "body" + (item.text ? "" : " empty");
+  body.innerHTML = item.text ? renderBody(item.text) : ({ note: "Click to write…", text: "Type here…" }[item.type] || "Add a caption…");
+  const edit = (cx, cy) => {
+    // 1) remember the current height: the editor starts with exactly the same size, so nothing jumps
+    const h = body.offsetHeight;
+    // 2) find where in the text you clicked, so the cursor starts there (end of the text if unknown)
+    let caret = item.text.length;
+    if (cx !== undefined && item.text) {
+      let node, off;
+      if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(cx, cy); if (p) { node = p.offsetNode; off = p.offset; } }
+      else if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(cx, cy); if (r) { node = r.startContainer; off = r.startOffset; } }
+      if (node && body.contains(node)) {
+        const r = document.createRange(); r.setStart(body, 0); r.setEnd(node, off);
+        caret = Math.min(item.text.length, r.toString().length);   // characters before the click = position in the text
+      }
+    } else if (!item.text) caret = 0;
+    const ta = document.createElement("textarea");
+    ta.value = item.text; ta.rows = 1; ta.style.height = h + "px";
+    ta.oninput = () => {
+      // BULLETS: when the line you are typing starts with "* ", turn the star into a bullet "• "
+      const pos = ta.selectionStart;
+      const ls = ta.value.lastIndexOf("\n", pos - 1) + 1;           // start of the current line
+      if (ta.value[ls] === "*" && ta.value[ls + 1] === " ") {
+        ta.value = ta.value.slice(0, ls) + "•" + ta.value.slice(ls + 1);
+        ta.setSelectionRange(pos, pos);                              // keep the cursor where it was
+      }
+      // CHECKBOXES: "[] " at the start of a line becomes "[ ] " (a box)
+      const cm = ta.value.slice(ls).match(/^\[\] /);
+      if (cm && pos === ls + 3) {
+        ta.value = ta.value.slice(0, ls) + "[ ] " + ta.value.slice(ls + 3);
+        ta.setSelectionRange(ls + 4, ls + 4);
+      }
+      item.text = ta.value; ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px";
+    };
+    // LISTS: Enter on a bullet "• ", a box "[ ] " or a number "3. " starts the next item; Enter on an empty item ends the list.
+    // "beforeinput" is used instead of "keydown" because phone keyboards do not send a reliable Enter key.
+    let shiftDown = false;
+    ta.onkeydown = e => { shiftDown = e.shiftKey; };
+    ta.onkeyup = () => { shiftDown = false; };
+    ta.addEventListener("beforeinput", e => {
+      if ((e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph") || shiftDown) return;   // Shift+Enter = plain line break
+      const pos = ta.selectionStart, ls = ta.value.lastIndexOf("\n", pos - 1) + 1;
+      const line = ta.value.slice(ls, pos);
+      const num = line.match(/^(\d+)\. /);
+      let pre = null;
+      if (line.startsWith("• ")) pre = "• ";
+      else if (/^(\[[ xX]\]|[☐☑]) /.test(line)) pre = "[ ] ";
+      else if (num) pre = (+num[1] + 1) + ". ";                    // numbering: 1. 2. 3. ...
+      if (!pre) return;                                            // normal line: normal Enter
+      e.preventDefault();
+      if (/^(• |\[[ xX]\] |[☐☑] |\d+\. )$/.test(line)) ta.setRangeText("", ls, pos, "end");   // empty item -> remove it (ends the list)
+      else ta.setRangeText("\n" + pre, pos, ta.selectionEnd, "end");                                      // continue the list
+      ta.dispatchEvent(new Event("input"));                        // save + resize
+    });
+    ta.onblur = () => { item.text = ta.value; activeNote = null; hideHlBar(); save(); render(); };
+    body.replaceWith(ta); activeNote = item;  // pasting an image now goes into this note
+    ta.focus({ preventScroll: true });                           // do not let the browser scroll the canvas
+    ta.setSelectionRange(caret, caret);
+    bindHighlight(ta);                                           // the colour bar for highlighting selected text
+    if (ta.scrollHeight > ta.clientHeight) ta.style.height = ta.scrollHeight + "px";   // grow only if the text really needs more room
+  };
+  body.onmousedown = e => { if (e.target.classList.contains("cb")) e.preventDefault(); };   // keeps the focus, so the click is never lost
+  body.onclick = e => {
+    if (e.target.classList.contains("cb")) return toggleCheck(item, +e.target.dataset.line);   // a click on a box ticks it
+    if (e.target.tagName !== "A") edit(e.clientX, e.clientY);                                  // links stay clickable
+  };  // links stay clickable
+  el.appendChild(body);
+  if (editing) setTimeout(edit, 0);
+  // YouTube links in the text get a clickable thumbnail preview
+  el.appendChild(makeVideos(item));
+  // Images embedded inside the note (shown under the text)
+  if (item.type === "note") {
+    el.appendChild(makeInlineImages(item));
+    el.appendChild(makeDeadline(item, el));   // premium deadline chip
+  }
+
+  // Images also get an editable link URL field
+  if (item.type === "image") {
+    const inp = document.createElement("input");
+    inp.className = "link"; inp.placeholder = "Link URL (opens when you click the image)";
+    inp.value = item.link || "";
+    inp.onchange = () => { item.link = fixUrl(inp.value); save(); render(); };
+    el.appendChild(inp);
+  }
+
+  // With snapping on, a resized card's width also snaps to the grid when you release the mouse
+  el.addEventListener("pointerup", () => {
+    if (!snapOn) return;
+    const w = snapW(el.offsetWidth);
+    if (w !== el.offsetWidth) { el.style.width = w + "px"; item.w = w; save(); }
+  });
+  // Remember width after the user resizes the card
+  new ResizeObserver(() => { const w = el.offsetWidth; if (w && Math.abs(w - item.w) > 2) { item.w = w; save(); } }).observe(el);
+  return el;
+}
+
+/* ---------- Images inside a note ---------- */
+// Store a new image in the note, then redraw
+async function addImageToNote(item, blob) {
+  const img = await putImage(blob);
+  item.images = item.images || [];          // older notes have no images list yet
+  item.images.push({ img, link: "" });
+  save(); render();
+}
+// Build the block of embedded images for one note
+/* ---------- The "Add image" field of a note: closed by default, opens for 5 seconds ---------- */
+const addUntil = {};                                    // note id -> the moment its field closes again
+const addTimers = {};                                   // note id -> the timer that closes it
+function setAddField(item, open) {
+  clearTimeout(addTimers[item.id]);
+  if (open) { addUntil[item.id] = Date.now() + 5000; addTimers[item.id] = setTimeout(() => setAddField(item, false), 5000); }
+  else delete addUntil[item.id];
+  // Only this note's card is updated (a full redraw would interrupt typing in other notes)
+  const card = board.querySelector('.card[data-id="' + item.id + '"]');
+  if (!card) return;
+  const tile = card.querySelector(".addpic"), tg = card.querySelector(".addtoggle");
+  if (!tile || !tg) return;
+  tile.classList.toggle("closed", !open); tg.classList.toggle("on", open);
+  if (open) {                                           // restart the shrinking countdown line
+    const bar = tile.querySelector("i");
+    bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = ""; bar.style.animationDuration = "5000ms";
+  }
+}
+
+// Icons (inline SVG, drawn with the text color)
+const ICON_IMAGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 8"/></svg>';
+const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
+const ICON_GRIP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
+
+// Builds the block of pictures inside a note + the "Add image" tile at the end
+function makeInlineImages(item) {
+  const wrap = document.createElement("div");
+  (item.images || []).forEach((im, idx) => {
+    const box = document.createElement("div"); box.className = "inline-img";
+    const img = document.createElement("img"); img.src = imgUrl(im);
+    if (im.link) { img.classList.add("linked"); img.title = im.link; }
+    img.onclick = () => im.link && window.open(im.link, "_blank", "noopener");   // click = open link
+    // Move handle (appears on hover): drag it to reorder, to another note, or out onto the canvas
+    const mv = document.createElement("div"); mv.className = "imove"; mv.innerHTML = ICON_GRIP;
+    mv.title = "Drag to move: reorder it, put it in another note, or drop it on the canvas";
+    enableImageMove(mv, box, img, item, idx, wrap);
+    const rm = document.createElement("button"); rm.className = "rm"; rm.textContent = "\u00d7"; rm.title = "Remove image";
+    rm.onclick = () => { item.images.splice(idx, 1); save(); render(); };
+    const inp = document.createElement("input"); inp.className = "link";
+    inp.placeholder = "Link URL for this image"; inp.value = im.link || "";
+    inp.onchange = () => { im.link = fixUrl(inp.value); save(); render(); };
+    box.append(img, mv, rm, inp); wrap.appendChild(box);
+  });
+  // The "Add image" tile: it looks like an empty picture and lights up when you hover over it
+  const add = document.createElement("button");
+  const left = (addUntil[item.id] || 0) - Date.now();      // time left while the field is open (0 or less = closed)
+  add.className = "addpic" + (item.images && item.images.length ? " compact" : "") + (left > 0 ? "" : " closed");
+  add.innerHTML = ICON_IMAGE + "<span>Add image</span><span class='sub'>click, paste or drop a file</span><i></i>";   // <i> = the countdown line
+  if (left > 0) add.querySelector("i").style.animationDuration = left + "ms";
+  add.title = "Add an image inside this note";
+  add.onmousedown = e => e.preventDefault();   // same reason: keep the focus, so the click is never lost
+  add.onclick = () => { pendingNote = item; file.click(); };
+  // While the pointer is over the field it stays open (the countdown pauses); the 5 seconds restart when you leave it
+  add.onmouseenter = () => { clearTimeout(addTimers[item.id]); add.querySelector("i").style.animationPlayState = "paused"; };
+  add.onmouseleave = () => { if (!add.classList.contains("closed")) setAddField(item, true); };
+  wrap.appendChild(add);
+  return wrap;
+}
+
+// Drag a picture by its handle. A small ghost copy follows the pointer (the note would clip the real one).
+//  - dropped inside the same note  -> it changes place (a blue line shows where)
+//  - dropped on another note       -> it moves into that note
+//  - dropped on the empty canvas   -> it becomes its own image card, where you let go
+function enableImageMove(handle, box, imgEl, item, idx, wrap) {
+  handle.onpointerdown = e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    const card = box.closest(".card"), others = [...wrap.querySelectorAll(".inline-img")], rest = others.filter(o => o !== box);
+    const ghost = imgEl.cloneNode(); ghost.className = "ghost"; document.body.appendChild(ghost);
+    box.style.opacity = ".35";
+    const cardAt = m => { const el = document.elementFromPoint(m.clientX, m.clientY); return el && el.closest(".card"); };
+    const itemOf = c => c && items.find(i => i.id === c.dataset.id);
+    // index the picture would get inside this note: how many of the others are above the pointer
+    const slot = m => rest.filter(o => { const r = o.getBoundingClientRect(); return m.clientY > r.top + r.height / 2; }).length;
+    const clearMarks = () => {
+      others.forEach(o => o.classList.remove("ins-before", "ins-after"));
+      document.querySelectorAll(".card.dropping").forEach(c => c.classList.remove("dropping"));
+    };
+    const cleanup = () => { handle.onpointermove = handle.onpointerup = handle.onpointercancel = null; ghost.remove(); clearMarks(); box.style.opacity = ""; };
+
+    handle.onpointermove = m => {
+      ghost.style.left = m.clientX + 12 + "px"; ghost.style.top = m.clientY + 12 + "px";
+      clearMarks();
+      const c = cardAt(m), t = itemOf(c);
+      if (t === item && rest.length) { const k = slot(m); if (k < rest.length) rest[k].classList.add("ins-before"); else rest[k - 1].classList.add("ins-after"); }
+      else if (t && t !== item && t.type === "note") c.classList.add("dropping");
+    };
+    handle.onpointercancel = cleanup;
+    handle.onpointerup = m => {
+      const sr = scroller.getBoundingClientRect(), t = itemOf(cardAt(m)), k = slot(m);
+      cleanup();
+      if (m.clientX < sr.left || m.clientX > sr.right || m.clientY < sr.top || m.clientY > sr.bottom) return;   // released outside the canvas: cancel
+      const im = item.images[idx];
+      if (t === item) { item.images.splice(idx, 1); item.images.splice(k, 0, im); }                          // reorder
+      else if (t && t.type === "note") { item.images.splice(idx, 1); (t.images = t.images || []).push(im); }   // into another note
+      else {                                                                                                   // out onto the canvas
+        item.images.splice(idx, 1);
+        const [bx, by] = toBoard(m.clientX, m.clientY);
+        items.push({ id: uid(), type: "image", x: snap(bx - 40), y: snap(by - 20), w: 240, img: im.img, url: im.url, link: im.link || "", text: "" });
+      }
+      save(); render();
+    };
+  };
+}
+
+/* =====================================================================
+   DEADLINES (premium)
+   - item.deadline : the due moment as a number (ms since 1970), optional
+   - item.dlStart  : when the deadline was set, used to fill the progress ring
+   The chip shows a ring that fills as time runs out, a live "time left"
+   text, and the date. Click it to open a popover with quick presets.
+   ===================================================================== */
+const DAY = 864e5;
+const RING = 2 * Math.PI * 9;        // circumference of the ring (radius 9, see the SVG below)
+
+// Turns a duration in ms into short text: "45 min", "5h 20m", "3d 4h", "3 weeks"
+function spanText(ms) {
+  const m = Math.floor(ms / 6e4);
+  if (m < 1) return "<1 min";
+  if (m < 60) return m + " min";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h " + (m % 60) + "m";
+  const d = Math.floor(h / 24);
+  if (d < 14) return d + "d " + (h % 24) + "h";
+  return Math.round(d / 7) + " weeks";
+}
+
+// Works out what the chip should show right now: color state, ring fill (0-1) and text
+function dlInfo(item) {
+  if (!item.deadline) return { cls: "none", pct: 0, text: "Add deadline" };
+  if (item.done)      return { cls: "done", pct: 1, text: "\u2713 Completed" };
+  const now = Date.now(), left = item.deadline - now;
+  const start = item.dlStart || now;
+  const pct = Math.min(1, Math.max(0, (now - start) / Math.max(1, item.deadline - start)));
+  if (left < 0) return { cls: "late", pct: 1, text: "Overdue " + spanText(-left) };
+  let cls = pct < 0.5 ? "ok" : pct < 0.8 ? "warn" : "hot";   // green -> amber -> orange
+  if (left < 2 * 36e5) cls = "hot";                          // under 2 hours is always "hot"
+  return { cls, pct, text: spanText(left) + " left" };
+}
+
+const fmtDate = ms => new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+// Value format that <input type="datetime-local"> expects (local time)
+const toLocalInput = ms => new Date(ms - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+// A moment N days from now at hh:mm (used by the presets)
+function at(daysAhead, h, m) { const d = new Date(); d.setDate(d.getDate() + daysAhead); d.setHours(h, m, 0, 0); return d.getTime(); }
+
+// Builds the footer of a note: the deadline chip
+function makeDeadline(item, card) {
+  const foot = document.createElement("div"); foot.className = "foot";
+  const chip = document.createElement("button");
+  chip.innerHTML = '<svg class="ring" viewBox="0 0 24 24"><circle class="track" cx="12" cy="12" r="9"/>' +
+                   '<circle class="bar" cx="12" cy="12" r="9" stroke-dasharray="' + RING + '"/></svg>' +
+                   '<span class="t"></span><span class="d"></span>';
+  const bar = chip.querySelector(".bar"), t = chip.querySelector(".t"), d = chip.querySelector(".d");
+
+  // paint() refreshes the chip; it is called now and then every 30 seconds
+  const paint = () => {
+    const i = dlInfo(item);
+    chip.className = "dl " + i.cls;
+    bar.style.strokeDashoffset = RING * (1 - i.pct);          // ring fill
+    t.textContent = i.text;
+    d.textContent = item.deadline && i.cls !== "done" ? "\u00b7 " + fmtDate(item.deadline) : "";
+    chip.title = item.deadline ? "Deadline: " + fmtDate(item.deadline) + " (click to change)" : "Add a deadline (optional)";
+    card.classList.toggle("overdue", i.cls === "late");        // red glow when overdue
+  };
+  paint(); liveChips.push(paint);
+
+  chip.onmousedown = e => e.preventDefault();   // keeps the text you are typing from losing focus
+  chip.onclick = () => openPop(chip, item);
+  foot.appendChild(chip);
+  return foot;
+}
+
+// ----- Popover (one shared element, placed under the clicked chip) -----
+const pop = document.createElement("div"); pop.id = "pop"; pop.hidden = true; document.body.appendChild(pop);
+let popFor = null;
+function closePop() { pop.hidden = true; popFor = null; }
+function setDeadline(item, ms) {
+  if (ms) { item.deadline = ms; item.dlStart = Date.now(); }
+  else    { delete item.deadline; delete item.dlStart; }        // no value = remove the deadline
+  save(); closePop(); render();
+}
+function openPop(chip, item) {
+  if (popFor === item && !pop.hidden) return closePop();          // clicking the chip again closes it
+  popFor = item; pop.innerHTML = "";
+  const add = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; pop.appendChild(e); return e; };
+
+  add("div", "ph", "Set a deadline");
+  // Quick presets (edit the labels / times here)
+  const presets = [
+    ["Later today",    () => { const x = at(0, 18, 0); return x > Date.now() + 36e5 ? x : Date.now() + 3 * 36e5; }],
+    ["Tomorrow 9:00",  () => at(1, 9, 0)],
+    ["In 3 days",      () => at(3, 9, 0)],
+    ["Next week",      () => at(7, 9, 0)],
+  ];
+  const grid = add("div", "pgrid");
+  presets.forEach(([label, fn]) => {
+    const b = document.createElement("button"); b.textContent = label;
+    b.onclick = () => setDeadline(item, fn()); grid.appendChild(b);
+  });
+  // Custom date + time
+  add("div", "pl", "Custom date & time");
+  const inp = add("input"); inp.type = "datetime-local";
+  inp.value = toLocalInput(item.deadline || Date.now() + DAY);
+  inp.onchange = () => inp.value && setDeadline(item, new Date(inp.value).getTime());
+  if (item.deadline) { const rm = add("button", "rm2", "Remove deadline"); rm.onclick = () => setDeadline(item, null); }
+
+  // Position under the chip (or above it if there is no room)
+  pop.hidden = false;
+  const r = chip.getBoundingClientRect();
+  let top = r.bottom + 8; if (top + pop.offsetHeight > innerHeight - 8) top = r.top - pop.offsetHeight - 8;
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + "px";
+  pop.style.top = Math.max(8, top) + "px";
+}
+
+/* ---------- YouTube previews ---------- */
+// Matches youtube.com/watch?v=ID, youtu.be/ID, /shorts/ID, /embed/ID and /live/ID (an ID is 11 characters)
+const YT_RE = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^\s]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/g;
+function makeVideos(item) {
+  const wrap = document.createElement("div");
+  const ids = [...new Set([...(item.text || "").matchAll(YT_RE)].map(m => m[1]))];   // unique video ids found in the text
+  ids.forEach(id => {
+    const a = document.createElement("a");                       // the whole preview is a link: click = open the video
+    a.className = "yt"; a.href = "https://www.youtube.com/watch?v=" + id;
+    a.target = "_blank"; a.rel = "noopener"; a.title = "Open video on YouTube";
+    const img = document.createElement("img");
+    img.src = "https://img.youtube.com/vi/" + id + "/hqdefault.jpg"; img.alt = "";
+    // If the thumbnail can't load (offline, blocked...), show a plain dark box instead
+    img.onerror = () => { img.remove(); const fb = document.createElement("span"); fb.className = "fb"; fb.textContent = "YouTube video"; a.prepend(fb); };
+    const play = document.createElement("span"); play.className = "play";   // red play button drawn by CSS
+    a.append(img, play); wrap.appendChild(a);
+  });
+  return wrap;
+}
+
+/* ---------- Dragging (mouse + touch via pointer events) ---------- */
+function enableDrag(el, handle, item) {
+  handle.onpointerdown = e => {
+    if (e.button !== 0 || e.target.closest("button, input")) return;   // closest() also catches clicks on the icon drawn INSIDE a button
+    if (e.shiftKey) { e.preventDefault(); toggleSelItem(item.id); return; }   // Shift+click on the header: add to / remove from the selection
+    handle.setPointerCapture(e.pointerId);
+    const many = sel.items.has(item.id) && sel.items.size + sel.strokes.size > 1;
+    if (many) return startGroupDrag(e, handle);                        // part of a selection: everything selected moves together
+    if (!sel.items.has(item.id)) clearSel();                           // dragging something that is not selected: forget the selection
+    const sx = e.clientX, sy = e.clientY, ox = item.x, oy = item.y;   // where the drag started
+    handle.onpointermove = m => {
+      item.x = snap(Math.max(0, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(0, oy + (m.clientY - sy) / zoom));   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
+      el.style.left = item.x + "px"; el.style.top = item.y + "px";
+    };
+    handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; save(); };
+  };
+}
+
+/* ---------- Events ---------- */
+document.getElementById("addNote").onclick = () => addNote();
+const file = document.getElementById("file");
+document.getElementById("addImage").onclick = () => { pendingNote = null; file.click(); };   // toolbar = standalone image card
+file.onchange = async () => {
+  if (file.files[0]) {
+    const src = await fileToBlob(file.files[0]);   // (src is a Blob = the image data)
+    pendingNote ? addImageToNote(pendingNote, src) : addImage(src);   // inside a note, or its own card
+  }
+  pendingNote = null; file.value = "";
+};
+// Double-click empty canvas = new note right there
+board.ondblclick = e => { if (e.target === board) addNote(...toBoard(e.clientX, e.clientY)); };
+// (pasting and dropping pictures is handled in the PASTE section below)
+
+// Close the popover on outside click, Escape, or scroll
+document.addEventListener("pointerdown", e => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest(".dl")) closePop(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePop(); });
+scroller.addEventListener("scroll", closePop);
+// Keep every countdown live (repaints only the chips, so nothing you type is lost)
+setInterval(() => liveChips.forEach(paint => paint()), 30000);
+
+// Snap toggle button in the toolbar
+const snapBtn = document.getElementById("snapBtn");
+function updateSnapBtn() {
+  snapBtn.textContent = "🧲 Snap to grid: " + (snapOn ? "On" : "Off");
+  snapBtn.classList.toggle("on", snapOn);
+}
+snapBtn.onclick = () => {
+  snapOn = !snapOn;
+  try { localStorage.setItem("canvas-todo-snap", snapOn ? "1" : "0"); } catch (e) {}
+  if (snapOn) items.forEach(i => {                // turning it on aligns everything that already exists
+    i.x = snap(i.x); i.y = snap(i.y); i.w = snapW(i.w);
+  });
+  save(); updateSnapBtn(); applyGrid(); render();
+};
+updateSnapBtn();
+
+/* =====================================================================
+   GRID SIZE
+   The select in the toolbar changes GRID (spacing of the dots AND of the snapping).
+   ===================================================================== */
+const gridSel = document.getElementById("gridSize");
+function applyGrid() {
+  // dots are drawn by the board's background; shifting it by half a tile puts the dots exactly on multiples of GRID
+  board.style.backgroundSize = GRID + "px " + GRID + "px";
+  board.style.backgroundPosition = (-GRID / 2) + "px " + (-GRID / 2) + "px";
+  gridSel.value = String(GRID);
+  board.style.backgroundImage = snapOn ? "" : "none";   // the dots only show while snapping is on
+  gridSel.hidden = !snapOn;                              // so does the grid size menu
+}
+function alignAll() { items.forEach(i => { i.x = snap(i.x); i.y = snap(i.y); i.w = snapW(i.w); }); }
+gridSel.onchange = () => {
+  GRID = +gridSel.value;
+  try { localStorage.setItem("canvas-todo-grid", GRID); } catch (e) {}
+  applyGrid();
+  if (snapOn) { alignAll(); save(); render(); }   // snapping already on: re-align everything to the new grid
+};
+applyGrid();
+
+/* =====================================================================
+   DRAWING
+   strokes = [{ id, color, size, pts: [[x, y], ...] }]  (saved under its own key)
+   An SVG layer (#ink) sits inside the board, under the cards. In draw mode it
+   moves on top and catches the mouse / finger.
+   ===================================================================== */
+const SVGNS = "http://www.w3.org/2000/svg";
+const DRAW_KEY = "canvas-todo-draw-v1";
+let strokes = [], drawOn = false, erasing = false;
+let current = null, curEl = null;            // the stroke being drawn right now (data + its <path>)
+let erasingNow = false, erasedAny = false;   // eraser state while the pointer is down
+try { strokes = CANVAS_ID === "main" ? JSON.parse(localStorage.getItem(DRAW_KEY)) || [] : []; } catch (e) { strokes = []; }   // old drawing data belongs to the first canvas only
+const saveStrokes = () => save();   // the drawing is saved together with the cards (see STORAGE)
+
+const ink = document.createElementNS(SVGNS, "svg"); ink.id = "ink";
+board.prepend(ink);                           // first child = the cards (added after it) appear on top
+
+// Builds a smooth SVG path from a list of points (curves through the midpoints)
+function pathD(pts) {
+  if (pts.length === 1) return "M" + pts[0][0] + " " + pts[0][1] + "l0.01 0";   // a single tap = a dot
+  let d = "M" + pts[0][0] + " " + pts[0][1];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2;
+    d += "Q" + pts[i][0] + " " + pts[i][1] + " " + mx + " " + my;
+  }
+  const last = pts[pts.length - 1];
+  return d + "L" + last[0] + " " + last[1];
+}
+function pathEl(s) {
+  const p = document.createElementNS(SVGNS, "path");
+  p.setAttribute("d", strokeD(s)); p.setAttribute("stroke", s.color); p.setAttribute("stroke-width", s.size);
+  if (sel.strokes.has(s.id)) p.setAttribute("class", "sel");           // selected drawings glow
+  return p;
+}
+function drawAll() { ink.innerHTML = ""; strokes.forEach(s => ink.appendChild(pathEl(s))); }
+
+// Does the point (x, y) touch this stroke? (distance from the point to each little segment)
+function hitStroke(s, x, y) {
+  const r = 10 + s.size;
+  const pts = outline(s);
+  for (let i = 0; i < pts.length; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1] || pts[i];
+    const vx = bx - ax, vy = by - ay, len = vx * vx + vy * vy || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / len));
+    if (Math.hypot(x - (ax + t * vx), y - (ay + t * vy)) < r) return true;
+  }
+  return false;
+}
+function erasePoint(x, y) {
+  const before = strokes.length;
+  strokes = strokes.filter(s => !hitStroke(s, x, y));
+  if (strokes.length !== before) { erasedAny = true; drawAll(); }
+}
+
+// Pointer position in board coordinates (works with scrolling)
+const boardPt = e => toBoard(e.clientX, e.clientY).map(Math.round);   // toBoard() accounts for scroll and zoom
+
+// ----- Shapes: strokes with tool "line" / "arrow" / "rect" / "ellipse" keep just 2 points (start and end) -----
+function strokeD(s) {                                   // the SVG path of any stroke
+  const t = s.tool || "pen", p = s.pts;
+  if (t === "pen") return pathD(p);
+  const [x1, y1] = p[0], [x2, y2] = p[1] || p[0];
+  if (t === "line") return "M" + x1 + " " + y1 + "L" + x2 + " " + y2;
+  if (t === "arrow") {                                  // a line plus two short strokes for the arrow head
+    const a = Math.atan2(y2 - y1, x2 - x1), h = 10 + s.size * 2;
+    const hx = k => Math.round(x2 - h * Math.cos(a + k)), hy = k => Math.round(y2 - h * Math.sin(a + k));
+    return "M" + x1 + " " + y1 + "L" + x2 + " " + y2 + "M" + hx(0.5) + " " + hy(0.5) + "L" + x2 + " " + y2 + "L" + hx(-0.5) + " " + hy(-0.5);
+  }
+  if (t === "heart") { const c = heartCurves(p); return "M" + c[0][0] + " " + c[0][1] + c.map(k => "C" + k.slice(2).join(" ")).join("") + "Z"; }
+  if (t === "rect") return "M" + x1 + " " + y1 + "H" + x2 + "V" + y2 + "H" + x1 + "Z";
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;   // circle / ellipse
+  return "M" + (cx - rx) + " " + cy + "A" + rx + " " + ry + " 0 1 0 " + (cx + rx) + " " + cy + "A" + rx + " " + ry + " 0 1 0 " + (cx - rx) + " " + cy + "Z";
+}
+function outline(s) {                                   // points along the stroke, used by the eraser
+  const t = s.tool || "pen", p = s.pts;
+  if (t === "pen" || t === "line" || t === "arrow") return p;
+  const [x1, y1] = p[0], [x2, y2] = p[1] || p[0];
+  if (t === "heart") return heartCurves(p).flatMap(([ax, ay, bx, by, cx, cy, dx, dy]) => Array.from({ length: 9 }, (_, i) => {
+    const u = i / 8, v = 1 - u;                         // points along each curve (used by the eraser)
+    return [v*v*v*ax + 3*v*v*u*bx + 3*v*u*u*cx + u*u*u*dx, v*v*v*ay + 3*v*v*u*by + 3*v*u*u*cy + u*u*u*dy];
+  }));
+  if (t === "rect") return [[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]];
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+  return Array.from({ length: 41 }, (_, i) => [cx + rx * Math.cos(i * Math.PI / 20), cy + ry * Math.sin(i * Math.PI / 20)]);
+}
+// Heart: 6 curves drawn in a 0-1 box; heartCurves() stretches them to the box you drag
+const HEART = [   // each row: start x,y, control 1 x,y, control 2 x,y, end x,y
+  [0.5, 0.95, 0.1, 0.62, 0, 0.38, 0, 0.28], [0, 0.28, 0, 0.1, 0.15, 0, 0.28, 0], [0.28, 0, 0.4, 0, 0.47, 0.07, 0.5, 0.16],
+  [0.5, 0.16, 0.53, 0.07, 0.6, 0, 0.72, 0], [0.72, 0, 0.85, 0, 1, 0.1, 1, 0.28], [1, 0.28, 1, 0.38, 0.9, 0.62, 0.5, 0.95],
+];
+function heartCurves(p) {
+  const [x1, y1] = p[0], [x2, y2] = p[1] || p[0];
+  return HEART.map(c => c.map((v, i) => i % 2 ? y1 + v * (y2 - y1) : x1 + v * (x2 - x1)));
+}
+const shapeTools = ["line", "arrow", "rect", "ellipse", "heart"];
+const sp = p => snapOn ? [snap(p[0]), snap(p[1])] : p;  // shapes snap to the grid when snapping is on
+
+ink.onpointerdown = e => {
+  if (!drawOn || e.button !== 0) return;               // only the left button draws
+  ink.setPointerCapture(e.pointerId);
+  const [x, y] = boardPt(e), tool = penTool.value;
+  if (tool === "erase") { erasingNow = true; erasePoint(x, y); return; }
+  const isShape = shapeTools.includes(tool), p0 = isShape ? sp([x, y]) : [x, y];
+  current = { id: uid(), tool, color: penColor.value, size: +penSize.value, pts: isShape ? [p0, p0] : [p0] };
+  curEl = pathEl(current); ink.appendChild(curEl);
+};
+ink.onpointermove = e => {
+  const [x, y] = boardPt(e);
+  if (erasingNow) return erasePoint(x, y);
+  if (!current) return;
+  if (current.tool !== "pen") { current.pts[1] = sp([x, y]); curEl.setAttribute("d", strokeD(current)); return; }   // shapes: move the end point
+  const last = current.pts[current.pts.length - 1];
+  if (Math.hypot(x - last[0], y - last[1]) < 2) return;                // pen: ignore tiny movements
+  current.pts.push([x, y]); curEl.setAttribute("d", strokeD(current));
+};
+ink.onpointerup = ink.onpointercancel = () => {
+  if (current) {
+    const [a, b] = current.pts, empty = current.tool !== "pen" && b && a[0] === b[0] && a[1] === b[1];   // a click without dragging draws no shape
+    if (empty) curEl.remove(); else { strokes.push(current); saveStrokes(); }
+    current = curEl = null;
+  }
+  if (erasingNow) { erasingNow = false; if (erasedAny) saveStrokes(); erasedAny = false; }
+};
+
+// Toolbar controls
+const drawBtn = document.getElementById("drawBtn"), drawTools = document.getElementById("drawTools");
+const penColor = document.getElementById("penColor"), penSize = document.getElementById("penSize");
+const penTool = document.getElementById("penTool"), undoBtn = document.getElementById("undoBtn"), clearBtn = document.getElementById("clearBtn");
+function updateDrawUi() {
+  drawBtn.textContent = "✏️ Draw: " + (drawOn ? "On" : "Off");
+  drawBtn.classList.toggle("on", drawOn);
+  drawTools.hidden = !drawOn;                           // pen tools only show in draw mode
+  ink.classList.toggle("on", drawOn); ink.classList.toggle("erase", erasing);
+}
+drawBtn.onclick = () => { drawOn = !drawOn; closePop(); updateDrawUi(); };
+penTool.onchange = () => { erasing = penTool.value === "erase"; updateDrawUi(); };   // the tool menu: pen, shapes or eraser
+undoBtn.onclick = () => { strokes.pop(); drawAll(); saveStrokes(); };
+clearBtn.onclick = () => {                              // clears at once; a 5-second Undo brings the drawing back
+  if (!strokes.length) return;
+  const old = strokes; strokes = []; drawAll(); saveStrokes();
+  toast("Drawing cleared", "Undo", 5000, () => { strokes = old; drawAll(); saveStrokes(); });
+};
+updateDrawUi(); drawAll();
+
+/* =====================================================================
+   ZOOM
+   The board is scaled with a CSS transform; #stage has the scaled size so scrolling works.
+   toBoard() turns a screen position into a canvas position (used by drag, drawing, paste...).
+   ===================================================================== */
+const stage = document.getElementById("stage"), zoomLbl = document.getElementById("zoomLbl");
+let zoom = 1;
+try { zoom = +localStorage.getItem("canvas-todo-zoom") || 1; } catch (e) {}
+function toBoard(cx, cy) { const r = board.getBoundingClientRect(); return [(cx - r.left) / zoom, (cy - r.top) / zoom]; }
+// Change the zoom; the point (cx, cy) on the screen stays where it is, so you zoom towards the pointer
+function setZoom(z, cx, cy) {
+  z = Math.min(2.5, Math.max(0.25, z));
+  const sr = scroller.getBoundingClientRect();
+  if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
+  const bx = (scroller.scrollLeft + cx - sr.left) / zoom, by = (scroller.scrollTop + cy - sr.top) / zoom;   // canvas point under the cursor
+  zoom = z;
+  board.style.transform = "scale(" + zoom + ")";
+  stage.style.width = 3000 * zoom + "px"; stage.style.height = 2000 * zoom + "px";
+  scroller.scrollLeft = bx * zoom - (cx - sr.left); scroller.scrollTop = by * zoom - (cy - sr.top);
+  zoomLbl.textContent = Math.round(zoom * 100) + "%";
+  try { localStorage.setItem("canvas-todo-zoom", zoom); } catch (e) {}
+  closePop(); closeList();
+}
+scroller.addEventListener("wheel", e => {
+  if (!e.ctrlKey && !e.metaKey) return;                 // normal scrolling stays normal
+  e.preventDefault();                                   // Ctrl + scroll (or a pinch on a trackpad) = zoom
+  setZoom(zoom * Math.exp(-e.deltaY * 0.0025), e.clientX, e.clientY);
+}, { passive: false });
+document.getElementById("zoomIn").onclick = () => setZoom(zoom * 1.2);
+document.getElementById("zoomOut").onclick = () => setZoom(zoom / 1.2);
+zoomLbl.onclick = () => setZoom(1);
+
+/* =====================================================================
+   FREE TEXT  (a card of type "text": just text on the canvas, no frame)
+   ===================================================================== */
+function addText(x, y) {
+  x = x ?? (scroller.scrollLeft + 60 + Math.random() * 80) / zoom;
+  y = y ?? (scroller.scrollTop + 60 + Math.random() * 80) / zoom;
+  const item = { id: uid(), type: "text", x: snap(x), y: snap(y), w: 260, text: "", size: 22 };
+  items.push(item); save(); render(item.id);            // opens the editor right away
+}
+document.getElementById("addText").onclick = () => addText();
+
+/* =====================================================================
+   DELETE WITH A 5-SECOND UNDO
+   The card disappears at once, a message with an Undo button stays for 5 seconds.
+   Its pictures are protected (keep) until the time is over, then cleaned up.
+   ===================================================================== */
+const toasts = document.createElement("div"); toasts.id = "toasts"; document.body.appendChild(toasts);
+function toast(msg, actionLabel, ms, onAction, onExpire) {
+  const t = document.createElement("div"); t.className = "toast";
+  const m = document.createElement("span"); m.textContent = msg;
+  const b = document.createElement("button"); b.textContent = actionLabel;
+  const bar = document.createElement("i"); bar.style.animationDuration = ms + "ms";   // the shrinking line = time left
+  t.append(m, b, bar); toasts.appendChild(t);
+  const timer = setTimeout(() => { t.remove(); if (onExpire) onExpire(); }, ms);
+  b.onclick = () => { clearTimeout(timer); t.remove(); onAction(); };
+}
+function removeItem(item) {
+  const index = items.indexOf(item);
+  items.splice(index, 1);
+  const ids = [item.img, ...(item.images || []).map(m => m.img)].filter(Boolean);
+  ids.forEach(id => keep.add(id));                      // keep its pictures while undo is possible
+  save(); render();
+  toast("Deleted", "Undo", 5000,
+    () => { items.splice(Math.min(index, items.length), 0, item); save(); render(); },   // undo: put it back where it was
+    () => { ids.forEach(id => keep.delete(id)); save(); });                              // time is over: the clean-up may delete the pictures
+}
+
+/* =====================================================================
+   PASTE and DROP pictures anywhere on the canvas
+   - Ctrl+V with a screenshot, "Copy image" from a web page, or an image link
+   - dragging an image file (or an image from another web page) onto the canvas
+   The picture lands under the pointer. While you type in a note, a pasted image goes inside that note.
+   ===================================================================== */
+const IMG_URL_RE = /^https?:\/\/\S+\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
+let lastClient = null;                                  // last pointer position on screen
+document.addEventListener("pointermove", e => { lastClient = [e.clientX, e.clientY]; });
+function pasteSpot() {                                  // under the pointer if it is over the canvas, else top-left of the view
+  const sr = scroller.getBoundingClientRect(), c = lastClient;
+  if (c && c[0] > sr.left && c[0] < sr.right && c[1] > sr.top && c[1] < sr.bottom) return toBoard(c[0], c[1]);
+  return [(scroller.scrollLeft + 60) / zoom, (scroller.scrollTop + 60) / zoom];
+}
+// Finds an image address in pasted / dropped data (the <img> of copied web content, or a plain link)
+function imageUrlFrom(dt) {
+  const m = (dt.getData("text/html") || "").match(/<img[^>]+src=["']([^"']+)["']/i);
+  const txt = (dt.getData("text/uri-list") || dt.getData("text/plain") || "").trim();
+  const url = m ? m[1] : (IMG_URL_RE.test(txt) ? txt : "");
+  return /^(https?:|data:image\/)/.test(url) ? url : "";
+}
+// Try to download the picture so it is stored for good; if the site forbids it, keep the link instead
+async function addImageFromUrl(url, x, y) {
+  try {
+    let blob;
+    if (url.startsWith("data:")) blob = dataUrlToBlob(url);
+    else { const r = await fetch(url); if (!r.ok) throw new Error("download failed"); blob = await r.blob(); }
+    if (!blob.type.startsWith("image/")) throw new Error("not an image");
+    return addImage(await fileToBlob(blob), x, y);
+  } catch (e) {
+    // The site does not let a page download its picture. Last chance: the clipboard may hold the picture itself.
+    try {                                                // (only if the browser already allows reading the clipboard: no surprise question)
+      const perm = await navigator.permissions.query({ name: "clipboard-read" });
+      if (perm.state === "granted") for (const it of await navigator.clipboard.read()) {
+        const type = it.types.find(t => t.startsWith("image/"));
+        if (type) return addImage(await fileToBlob(await it.getType(type)), x, y);
+      }
+    } catch (e2) {}
+    toast("Only the link of this picture could be kept (the site does not allow copying it). Tip: right-click the picture → Copy image, or take a screenshot.", "OK", 9000, () => {});
+    return addImage(null, x, y, url);
+  }
+}
+document.onpaste = async e => {
+  const cd = e.clipboardData; if (!cd) return;
+  const f = [...(cd.files || [])].find(f => f.type.startsWith("image/"));
+  const [x, y] = pasteSpot();
+  if (f) {                                              // a screenshot / copied image file
+    const target = activeNote && activeNote.type === "note" ? activeNote : null, blob = await fileToBlob(f);   // only notes can hold pictures inside
+    return target ? addImageToNote(target, blob) : addImage(blob, x, y);
+  }
+  if (activeNote) return;                               // typing in a note: normal text paste
+  const ae = document.activeElement;
+  if (!(ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA"))) {     // not typing anywhere: maybe a copied note
+    const clip = readNoteClip(), txt = (cd.getData("text/plain") || "").trim();
+    if (clip && txt && normClip(txt) === normClip(clip.label)) { pasteNote(x, y); return; }      // the clipboard text is the copied note: paste the note itself
+  }
+  const url = imageUrlFrom(cd);
+  if (url) addImageFromUrl(url, x, y);
+};
+board.ondragover = e => e.preventDefault();
+board.ondrop = async e => {
+  e.preventDefault();
+  const [x, y] = toBoard(e.clientX, e.clientY);
+  const files = [...(e.dataTransfer.files || [])].filter(f => f.type.startsWith("image/"));
+  if (files.length) {
+    let k = 0;
+    for (const f of files) { const o = 24 * k++; addImage(await fileToBlob(f), x + o, y + o); }   // several files: slightly staggered
+    return;
+  }
+  const url = imageUrlFrom(e.dataTransfer);
+  if (url) addImageFromUrl(url, x, y);
+};
+
+/* =====================================================================
+   SAVE BUTTON (split) + AUTO-SAVE + VERSIONS
+   - Your canvas is always saved automatically (see STORAGE).
+   - Right side "Save": stores a numbered copy (version) of the whole canvas instantly, no questions asked.
+   - Left side "v7": shows the version you are on and opens the list (15 per page).
+     Click a row to go back to it (this does NOT create a new version; Undo stays for 5 seconds).
+   - Automatic copies are added every 2 minutes, but only if you changed something. The 12 newest are kept.
+   Versions live in IndexedDB (kv store, key "snapshots"); pictures are shared, not duplicated.
+   ===================================================================== */
+const PAGE = 15;                                        // versions per page in the list
+let snaps = [];                                         // newest first: { id, n (version number), date, auto, items, strokes }
+let curId = null;                                       // id of the version the canvas is based on ("you are here")
+let listPage = 0;                                       // page shown in the list (0 = the 15 newest)
+const saveBtn = document.getElementById("saveBtn"), listBtn = document.getElementById("listBtn");
+const clone = o => JSON.parse(JSON.stringify(o));
+const sameAs = sn => JSON.stringify([sn.items, sn.strokes]) === JSON.stringify([items, strokes]);   // is the canvas identical to this version?
+const curSnap = () => snaps.find(sn => sn.id === curId);
+const imageIds = list => { const ids = []; list.forEach(i => { if (i.img) ids.push(i.img); (i.images || []).forEach(m => m.img && ids.push(m.img)); }); return ids; };
+
+// The label on the left button: the version you are on (a * means you edited the canvas since)
+function updateSplit() {
+  const c = curSnap();
+  listBtn.textContent = c ? "\u25be v" + c.n + (sameAs(c) ? "" : "*") : "\u25be";
+  listBtn.title = c ? "You are on version " + c.n + (sameAs(c) ? "" : " (edited since)") + ". Click to see all saved versions." : "Saved versions: go back to one, or delete it";
+}
+async function persistSnaps() {
+  clearTimeout(saveTimer); await flush();               // writes the versions together with the canvas (see STORAGE)
+  updateSplit();
+}
+async function saveSlot(auto) {
+  const match = [curSnap(), snaps[0]].find(sn => sn && sameAs(sn));   // is this exact canvas already saved?
+  if (match) {                                          // yes: no duplicate
+    curId = match.id;
+    if (!auto && match.auto) match.auto = false;        // a manual Save keeps an automatic copy for good
+    await persistSnaps(); return;
+  }
+  const n = Math.max(0, ...snaps.map(sn => sn.n || 0)) + 1;
+  const sn = { id: uid(), n, date: Date.now(), auto: !!auto, items: clone(items), strokes: clone(strokes) };
+  snaps.unshift(sn); curId = sn.id;
+  if (auto) snaps.filter(x => x.auto).slice(12).forEach(x => snaps.splice(snaps.indexOf(x), 1));   // keep the 12 newest automatic copies
+  listPage = 0;                                         // a new save: the list goes back to the top
+  await persistSnaps();
+  if (!listPanel.hidden) { renderList(); listPanel.scrollTop = 0; }
+}
+// Go back to a version. No new version is created; Undo (5 s) returns to what you had.
+function restoreSlot(sn) {
+  const before = { items: clone(items), strokes: clone(strokes), curId };
+  const ids = imageIds(before.items); ids.forEach(id => keep.add(id));      // protect its pictures while Undo is possible
+  items = clone(sn.items); strokes = clone(sn.strokes); curId = sn.id;
+  persistSnaps(); drawAll(); render(); closeList();
+  toast("Back to version " + sn.n, "Undo", 5000,
+    () => { items = before.items; strokes = before.strokes; curId = before.curId; persistSnaps(); drawAll(); render(); },
+    () => { ids.forEach(id => keep.delete(id)); save(); });
+}
+async function deleteSlot(id) {
+  snaps = snaps.filter(sn => sn.id !== id);
+  if (curId === id) curId = null;
+  await persistSnaps(); renderList();
+}
+// Remove every version older than the one you are on (or older than the newest, if you are on none)
+function removeOlder() {
+  const i = Math.max(0, snaps.findIndex(sn => sn.id === curId));
+  const gone = snaps.slice(i + 1);
+  if (!gone.length) return;
+  const ids = imageIds(gone.flatMap(sn => sn.items)); ids.forEach(id => keep.add(id));
+  snaps = snaps.slice(0, i + 1); listPage = 0;
+  persistSnaps(); renderList();
+  toast("Removed " + gone.length + " older version" + (gone.length > 1 ? "s" : ""), "Undo", 5000,
+    () => { snaps = snaps.concat(gone); persistSnaps(); renderList(); },    // they were older than everything left, so they go back at the end
+    () => { ids.forEach(id => keep.delete(id)); save(); });
+}
+
+// The dropdown list
+const listPanel = document.createElement("div"); listPanel.id = "snapList"; listPanel.hidden = true; document.body.appendChild(listPanel);
+function closeList() { listPanel.hidden = true; }
+const countImgs = sn => sn.items.reduce((n, i) => n + (i.type === "image" ? 1 : 0) + (i.images ? i.images.length : 0), 0);
+function renderList() {
+  listPanel.innerHTML = "";
+  const add = (tag, cls, text, parent = listPanel) => { const e = document.createElement(tag); e.className = cls; if (text) e.textContent = text; parent.appendChild(e); return e; };
+  const head = add("div", "sh", "");
+  add("span", "", "Saved versions", head);
+  const older = snaps.length - 1 - Math.max(0, snaps.findIndex(sn => sn.id === curId));
+  if (older > 0) {                                      // the small "remove older versions" button
+    const rm = add("button", "srm", "Remove " + older + " older", head);
+    rm.title = "Delete every version older than the one you are on (Undo for 5 seconds)";
+    rm.onclick = removeOlder;
+  }
+  if (!snaps.length) add("div", "empty", "Nothing saved yet. Press Save to keep a copy of your canvas.");
+  const pages = Math.max(1, Math.ceil(snaps.length / PAGE));
+  listPage = Math.min(listPage, pages - 1);
+  snaps.slice(listPage * PAGE, listPage * PAGE + PAGE).forEach(sn => {
+    const here = sn.id === curId;
+    const row = add("div", "srow" + (here ? " cur" : ""), "");
+    const go = add("button", "sgo", "", row);
+    const top = add("span", "top", "", go);
+    add("span", "", "v" + sn.n + " \u00b7 " + (sn.auto ? "Auto \u00b7 " : "") + fmtDate(sn.date), top);
+    if (here) add("em", "badge", sameAs(sn) ? "\u25cf YOU ARE HERE" : "\u25cf YOU ARE HERE (edited)", top);
+    add("small", "", sn.items.filter(i => i.type === "note").length + " notes \u00b7 " + countImgs(sn) + " images \u00b7 " + sn.strokes.length + " drawings", go);
+    go.onclick = () => restoreSlot(sn);
+    const del = add("button", "sdel", "\u00d7", row); del.title = "Delete this version";
+    let timer = null;
+    del.onclick = () => {                               // two clicks: the first arms the button, the second deletes
+      if (!timer) {
+        del.textContent = "Delete?"; del.classList.add("armed");
+        timer = setTimeout(() => { del.textContent = "\u00d7"; del.classList.remove("armed"); timer = null; }, 2000);
+        return;
+      }
+      clearTimeout(timer); deleteSlot(sn.id);
+    };
+  });
+  if (pages > 1) {                                      // paging: 15 versions per page
+    const nav = add("div", "spage", "");
+    const prev = add("button", "", "\u2039 Newer", nav), next = add("button", "", "Older \u203a", nav);
+    add("span", "", (listPage * PAGE + 1) + "\u2013" + Math.min(snaps.length, (listPage + 1) * PAGE) + " of " + snaps.length, nav);
+    nav.insertBefore(nav.lastChild, next);              // order: Newer | 1-15 of 42 | Older
+    prev.disabled = listPage === 0; next.disabled = listPage >= pages - 1;
+    prev.onclick = () => { listPage--; renderList(); listPanel.scrollTop = 0; };
+    next.onclick = () => { listPage++; renderList(); listPanel.scrollTop = 0; };
+  }
+}
+listBtn.onclick = () => {
+  if (!listPanel.hidden) return closeList();
+  closePop();
+  const ci = snaps.findIndex(sn => sn.id === curId);
+  listPage = ci > 0 ? Math.floor(ci / PAGE) : 0;        // open on the page that holds the version you are on
+  renderList(); listPanel.hidden = false;
+  const r = document.querySelector(".split").getBoundingClientRect();   // under the split button, right edges aligned
+  listPanel.style.top = (r.bottom + 8) + "px";
+  listPanel.style.left = Math.max(8, Math.min(r.right - listPanel.offsetWidth, innerWidth - listPanel.offsetWidth - 8)) + "px";
+  const hereRow = listPanel.querySelector(".srow.cur"); if (hereRow) hereRow.scrollIntoView({ block: "nearest" });
+};
+saveBtn.onclick = async () => {
+  await saveSlot(false);
+  // The first Save asks where to put the file (once). After that the place is remembered and Save writes to it directly.
+  if (FS_OK) {
+    try {
+      if (fileHandle && fileNeedsPermission) await reconnect();                      // remembered file: one click, no questions
+      else if (!fileHandle && !askedFile) { askedFile = true; await chooseNewFile(); }   // very first Save: choose the place
+      else writeFile();
+    } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); }
+    updateFileBtn();
+  }
+  saveBtn.textContent = "\u2713 Saved"; setTimeout(() => { saveBtn.textContent = "💾 Save"; }, 1500);
+};
+document.addEventListener("pointerdown", e => { if (!listPanel.hidden && !listPanel.contains(e.target) && !e.target.closest(".split")) closeList(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeList(); });
+
+// Auto-save: a copy every 2 minutes (only if something changed), and one when you leave the tab
+function autoSnap() { if (items.length || strokes.length) saveSlot(true); }
+setInterval(autoSnap, 120000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) { flush(); autoSnap(); updateMeta(); } });
+
+/* =====================================================================
+   PAN: hold the middle mouse button (click the scroll wheel) and move the mouse,
+   the canvas follows your hand from the point where you pressed.
+   ===================================================================== */
+let pan = null;
+scroller.addEventListener("mousedown", e => { if (e.button === 1) e.preventDefault(); });   // stops the browser's own auto-scroll circle
+scroller.addEventListener("pointerdown", e => {
+  if (e.button !== 1) return;
+  e.preventDefault();
+  pan = { x: e.clientX, y: e.clientY, left: scroller.scrollLeft, top: scroller.scrollTop };   // where the hand started
+  scroller.setPointerCapture(e.pointerId); scroller.style.cursor = "grabbing";
+});
+scroller.addEventListener("pointermove", e => {
+  if (!pan) return;
+  scroller.scrollLeft = pan.left - (e.clientX - pan.x); scroller.scrollTop = pan.top - (e.clientY - pan.y);
+});
+const endPan = () => { pan = null; scroller.style.cursor = ""; };
+scroller.addEventListener("pointerup", endPan); scroller.addEventListener("pointercancel", endPan);
+
+/* =====================================================================
+   TOOL MENU: custom dropdown for the drawing tool.
+   Every row has the same layout (an icon in a fixed 18px column, then the text),
+   so all the icons and all the labels line up. Icons are inline SVG outlines.
+   ===================================================================== */
+const TOOL_SVG = d => '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+const TOOLS = [
+  { id: "pen",     label: "Pen",       icon: TOOL_SVG('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>') },
+  { id: "line",    label: "Line",      icon: TOOL_SVG('<path d="M5 19 19 5"/>') },
+  { id: "arrow",   label: "Arrow",     icon: TOOL_SVG('<path d="M5 19 19 5"/><path d="M9 5h10v10"/>') },
+  { id: "rect",    label: "Rectangle", icon: TOOL_SVG('<rect x="3.5" y="6" width="17" height="12" rx="1.5"/>') },
+  { id: "ellipse", label: "Circle",    icon: TOOL_SVG('<circle cx="12" cy="12" r="8.5"/>') },
+  { id: "heart",   label: "Heart",     icon: TOOL_SVG('<path d="M12 20.5s-7.5-4.6-9.2-9.4C1.7 7.6 3.9 4.5 7 4.5c2 0 3.7 1.1 5 3 1.3-1.9 3-3 5-3 3.1 0 5.3 3.1 4.2 6.6-1.7 4.8-9.2 9.4-9.2 9.4Z"/>') },   // outline only: empty inside
+  { id: "erase",   label: "Eraser",    icon: TOOL_SVG('<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>') },
+];
+const toolBtn = document.getElementById("toolBtn");
+const toolMenu = document.createElement("div"); toolMenu.id = "toolMenu"; toolMenu.hidden = true; document.body.appendChild(toolMenu);
+function closeTools() { toolMenu.hidden = true; }
+// Select a tool: updates the hidden value, the button label and the eraser mode
+function setTool(id) {
+  const t = TOOLS.find(x => x.id === id) || TOOLS[0];
+  penTool.value = t.id;
+  toolBtn.innerHTML = t.icon + "<span>" + t.label + "</span><span class='caret'>\u25be</span>";
+  if (penTool.onchange) penTool.onchange();
+}
+toolBtn.onclick = () => {
+  if (!toolMenu.hidden) return closeTools();
+  toolMenu.innerHTML = "";
+  TOOLS.forEach(t => {
+    const b = document.createElement("button"); b.type = "button";
+    b.className = t.id === penTool.value ? "sel" : "";
+    b.innerHTML = t.icon + "<span>" + t.label + "</span>";
+    b.onclick = () => { setTool(t.id); closeTools(); };
+    toolMenu.appendChild(b);
+  });
+  toolMenu.hidden = false;
+  const r = toolBtn.getBoundingClientRect();                      // right under the button
+  toolMenu.style.top = (r.bottom + 8) + "px";
+  toolMenu.style.left = Math.max(8, Math.min(r.left, innerWidth - toolMenu.offsetWidth - 8)) + "px";
+};
+document.addEventListener("pointerdown", e => { if (!toolMenu.hidden && !toolMenu.contains(e.target) && !e.target.closest("#toolBtn")) closeTools(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeTools(); });
+setTool("pen");
+
+setZoom(zoom);                                          // apply the saved zoom level
+
+/* =====================================================================
+   SELECT AND MOVE (notes, pictures, free text AND drawings)
+   - Drag on an empty part of the canvas: a rectangle selects everything it touches (notes, pictures, text, drawings).
+   - Click a drawing to select it. Shift+click on a note's header (or on a drawing) adds / removes it.
+   - Drag the header of a selected note, or a selected drawing: the whole selection moves together.
+   - Delete / Backspace removes the selection (Undo for 5 seconds). Ctrl+A selects all. Esc clears the selection.
+   (In draw mode the rectangle is off, because the pen uses the mouse.)
+   ===================================================================== */
+const sel = { items: new Set(), strokes: new Set() };    // ids of the selected cards and drawings
+function applySel() {                                    // show the selection: outline on cards, glow on drawings
+  board.querySelectorAll(".card").forEach(c => c.classList.toggle("sel", sel.items.has(c.dataset.id)));
+  drawAll();
+}
+function clearSel() { if (!sel.items.size && !sel.strokes.size) return; sel.items.clear(); sel.strokes.clear(); applySel(); }
+function toggleSelItem(id) { sel.items.has(id) ? sel.items.delete(id) : sel.items.add(id); applySel(); }
+function toggleSelStroke(id) { sel.strokes.has(id) ? sel.strokes.delete(id) : sel.strokes.add(id); applySel(); }
+
+// Move everything that is selected while the pointer moves (captureEl = the element that follows the pointer)
+function startGroupDrag(e, captureEl) {
+  const sx = e.clientX, sy = e.clientY;
+  const its = items.filter(i => sel.items.has(i.id)).map(i => ({ i, x: i.x, y: i.y }));
+  const sts = strokes.filter(st => sel.strokes.has(st.id)).map(st => ({ st, pts: st.pts.map(p => [p[0], p[1]]) }));
+  let minX = Infinity, minY = Infinity;                  // so nothing is pushed out of the canvas on the left / top
+  its.forEach(o => { minX = Math.min(minX, o.x); minY = Math.min(minY, o.y); });
+  sts.forEach(o => o.pts.forEach(([x, y]) => { minX = Math.min(minX, x); minY = Math.min(minY, y); }));
+  captureEl.onpointermove = m => {
+    let dx = (m.clientX - sx) / zoom, dy = (m.clientY - sy) / zoom;
+    if (snapOn) { dx = Math.round(dx / GRID) * GRID; dy = Math.round(dy / GRID) * GRID; }
+    dx = Math.max(dx, -minX); dy = Math.max(dy, -minY);
+    its.forEach(o => {
+      o.i.x = o.x + dx; o.i.y = o.y + dy;
+      const c = board.querySelector('.card[data-id="' + o.i.id + '"]');
+      if (c) { c.style.left = o.i.x + "px"; c.style.top = o.i.y + "px"; }
+    });
+    if (sts.length) { sts.forEach(o => { o.st.pts = o.pts.map(([x, y]) => [x + dx, y + dy]); }); drawAll(); }
+  };
+  captureEl.onpointerup = captureEl.onpointercancel = () => { captureEl.onpointermove = captureEl.onpointerup = captureEl.onpointercancel = null; save(); };
+}
+
+const marq = document.createElement("div"); marq.id = "marquee"; board.appendChild(marq);   // the selection rectangle
+board.addEventListener("pointerdown", e => {
+  if (e.target !== board || drawOn || e.button !== 0) return;       // only on the empty canvas, not on a card, not while drawing
+  const [x, y] = toBoard(e.clientX, e.clientY);
+  const hit = [...strokes].reverse().find(st => hitStroke(st, x, y));   // did you press on a drawing?
+  board.setPointerCapture(e.pointerId);
+  if (hit) {
+    if (e.shiftKey) { toggleSelStroke(hit.id); return; }
+    if (!sel.strokes.has(hit.id)) { sel.items.clear(); sel.strokes.clear(); sel.strokes.add(hit.id); applySel(); }
+    return startGroupDrag(e, board);
+  }
+  if (!e.shiftKey) clearSel();                                       // empty canvas: start a rectangle (Shift keeps the old selection)
+  let moved = false;
+  board.onpointermove = m => {
+    const [cx, cy] = toBoard(m.clientX, m.clientY), w = Math.abs(cx - x), h = Math.abs(cy - y);
+    if (w + h > 4) moved = true;
+    Object.assign(marq.style, { display: "block", left: Math.min(x, cx) + "px", top: Math.min(y, cy) + "px", width: w + "px", height: h + "px" });
+  };
+  board.onpointerup = m => {
+    board.onpointermove = board.onpointerup = null; marq.style.display = "none";
+    if (!moved) return;
+    const [cx, cy] = toBoard(m.clientX, m.clientY);
+    const L = Math.min(x, cx), T = Math.min(y, cy), R = Math.max(x, cx), B = Math.max(y, cy);
+    board.querySelectorAll(".card").forEach(c => {                    // every card the rectangle touches
+      const it = items.find(i => i.id === c.dataset.id);
+      if (it && it.x < R && it.x + c.offsetWidth > L && it.y < B && it.y + c.offsetHeight > T) sel.items.add(it.id);
+    });
+    strokes.forEach(st => {                                           // every drawing whose box the rectangle touches
+      let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+      outline(st).forEach(([px, py]) => { x1 = Math.min(x1, px); y1 = Math.min(y1, py); x2 = Math.max(x2, px); y2 = Math.max(y2, py); });
+      if (x1 < R && x2 > L && y1 < B && y2 > T) sel.strokes.add(st.id);
+    });
+    applySel();
+  };
+});
+
+function removeSelected() {                              // Delete key: removes the selection, Undo for 5 seconds
+  const its = items.filter(i => sel.items.has(i.id)), sts = strokes.filter(st => sel.strokes.has(st.id));
+  if (!its.length && !sts.length) return;
+  const itAt = its.map(i => items.indexOf(i)), stAt = sts.map(st => strokes.indexOf(st));
+  const ids = its.flatMap(i => [i.img, ...(i.images || []).map(m => m.img)]).filter(Boolean);
+  ids.forEach(id => keep.add(id));                       // keep their pictures while Undo is possible
+  items = items.filter(i => !sel.items.has(i.id)); strokes = strokes.filter(st => !sel.strokes.has(st.id));
+  sel.items.clear(); sel.strokes.clear();
+  save(); drawAll(); render();
+  toast("Deleted " + (its.length + sts.length) + (its.length + sts.length > 1 ? " things" : " thing"), "Undo", 5000,
+    () => {                                              // undo: put everything back where it was
+      its.forEach((it, k) => items.splice(Math.min(itAt[k], items.length), 0, it));
+      sts.forEach((st, k) => strokes.splice(Math.min(stAt[k], strokes.length), 0, st));
+      save(); drawAll(); render();
+    },
+    () => { ids.forEach(id => keep.delete(id)); save(); });
+}
+document.addEventListener("keydown", e => {
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;   // typing: leave the keys alone
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+    e.preventDefault(); items.forEach(i => sel.items.add(i.id)); strokes.forEach(st => sel.strokes.add(st.id)); applySel();
+  } else if (e.key === "Delete" || e.key === "Backspace") {
+    if (sel.items.size || sel.strokes.size) { e.preventDefault(); removeSelected(); }
+  } else if (e.key === "Escape") clearSel();
+});
+
+/* =====================================================================
+   HIGHLIGHT TEXT IN NOTES
+   While you edit a note, select some text: a small colour bar appears above the note. Pick a colour to highlight it.
+   In the text it is stored as  ==y:highlighted words==  (y = yellow, g = green, b = blue, p = pink, o = orange).
+   The note view hides the marks and shows the colour. The ✕ button removes the highlight.
+   ===================================================================== */
+const HL_COLORS = { y: "#ffd60a", g: "#34c759", b: "#0a84ff", p: "#ff6b9d", o: "#ff9f0a" };
+const HL_SRC = "==([ygbpo]):(.+?)==";                   // used with new RegExp(HL_SRC, "g")
+// A line of text as HTML: highlights + links (the marks stay in the page but are invisible, so the cursor positions still match)
+function fmt(line) {
+  let out = "", last = 0, m;
+  const re = new RegExp(HL_SRC, "g");
+  while ((m = re.exec(line))) {
+    out += linkify(line.slice(last, m.index));
+    out += '<span class="hm">==' + m[1] + ':</span><mark class="hl-' + m[1] + '">' + linkify(m[2]) + '</mark><span class="hm">==</span>';
+    last = m.index + m[0].length;
+  }
+  return out + linkify(line.slice(last));
+}
+// Highlight the selected text of textarea ta with colour letter c ("" = remove the highlight)
+function hlApply(ta, c) {
+  let a = ta.selectionStart, b = ta.selectionEnd, text = ta.value;
+  if (a === b) return;
+  // 1) take out the marks of every highlight that touches the selection (so colours can be changed or removed)
+  const re = new RegExp(HL_SRC, "g"), cuts = [];
+  let m, out = "", last = 0;
+  while ((m = re.exec(text))) {
+    const ms = m.index, me = ms + m[0].length;
+    if (ms < b && me > a) { out += text.slice(last, ms) + m[2]; last = me; cuts.push([ms, ms + 4], [me - 2, me]); }
+  }
+  out += text.slice(last); text = out;
+  const map = p => p - cuts.reduce((n, [s0, e0]) => n + (p >= e0 ? e0 - s0 : p > s0 ? p - s0 : 0), 0);   // where a position moved to
+  a = map(a); b = map(b);
+  let added = 0;
+  // 2) wrap the selection, line by line (never the "• ", "[ ] " or "3. " at the start of a line)
+  if (c) {
+    let pos = 0;
+    text = text.split("\n").map(ln => {
+      const ls = pos, le = pos + ln.length; pos = le + 1;
+      let s0 = Math.max(a, ls), e0 = Math.min(b, le);
+      if (e0 <= s0) return ln;
+      s0 = Math.max(s0, ls + (ln.match(/^(• |\[[ xX]\] |[☐☑] |\d+\. )/) || [""])[0].length);
+      while (s0 < e0 && text[s0] === " ") s0++;                       // spaces stay outside the highlight
+      while (e0 > s0 && text[e0 - 1] === " ") e0--;
+      if (e0 <= s0) return ln;
+      added += 6;
+      return ln.slice(0, s0 - ls) + "==" + c + ":" + ln.slice(s0 - ls, e0 - ls) + "==" + ln.slice(e0 - ls);
+    }).join("\n");
+  }
+  ta.value = text;
+  ta.setSelectionRange(b + added, b + added);            // the cursor goes after the highlighted words
+  ta.dispatchEvent(new Event("input"));                  // save + resize
+}
+// The colour bar
+const hlBar = document.createElement("div"); hlBar.id = "hlBar"; hlBar.hidden = true; document.body.appendChild(hlBar);
+let hlTa = null;                                         // the textarea being edited
+Object.entries(HL_COLORS).forEach(([k, col]) => {
+  const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = col; b.dataset.c = k; b.title = "Highlight"; hlBar.appendChild(b);
+});
+{ const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "✕"; x.dataset.c = ""; x.title = "Remove the highlight"; hlBar.appendChild(x); }
+hlBar.addEventListener("mousedown", e => e.preventDefault());       // pressing the bar must not take the focus (and the selection) away from the text
+hlBar.addEventListener("pointerdown", e => {
+  e.preventDefault();
+  const b = e.target.closest("button");
+  if (b && hlTa) hlApply(hlTa, b.dataset.c);
+});
+function hideHlBar() { hlBar.hidden = true; hlTa = null; }
+function updateHlBar(ta) {                               // show the bar above the note while some text is selected
+  if (!ta || !ta.isConnected || document.activeElement !== ta || ta.selectionStart === ta.selectionEnd) return hideHlBar();
+  hlTa = ta;
+  const r = ta.closest(".card").getBoundingClientRect();
+  hlBar.hidden = false;
+  hlBar.style.left = Math.max(8, Math.min(r.left, innerWidth - hlBar.offsetWidth - 8)) + "px";
+  hlBar.style.top = Math.max(8, r.top - hlBar.offsetHeight - 8) + "px";
+}
+function bindHighlight(ta) {                             // called for every editor (see the edit function)
+  ["select", "keyup", "pointerup", "touchend", "input"].forEach(ev => ta.addEventListener(ev, () => setTimeout(() => updateHlBar(ta), 0)));
+}
+document.addEventListener("selectionchange", () => { const ae = document.activeElement; if (ae && ae.tagName === "TEXTAREA" && ae.closest(".card")) updateHlBar(ae); });
+
+/* =====================================================================
+   FILE ON YOUR COMPUTER (File System Access API: Chrome, Edge, Opera)
+   - "Save to a new file...": you choose the place ONCE, then every change is written there automatically.
+   - "Open a saved file...": continue from a file (your current canvas is first kept as a version).
+   - The file holds everything: notes, pictures, drawing and saved versions. Open it later to restore.
+   - When the page starts, the file is compared with the browser copy: the NEWER one wins.
+     So an old tab can never overwrite newer work: the file always has the latest.
+   - The browser may ask you to click "reconnect" once per visit (it forgets the permission).
+   ===================================================================== */
+const FS_OK = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
+let askedFile = false;                                 // the "where to save" question is asked only once per visit
+let fileHandle = null, fileNeedsPermission = false, fileErr = "", fileTimer = null, fileBusy = false;
+const dataCache = new Map();                           // picture id -> data URL (so each picture is converted only once)
+const blobToDataUrl = b => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+const fileBtn = document.getElementById("fileBtn");
+const FILE_TYPES = [{ description: "Canvas Todo", accept: { "application/json": [".json"] } }];
+
+function updateFileBtn() {
+  fileBtn.classList.toggle("on", !!fileHandle && !fileNeedsPermission && !fileErr);
+  if (!FS_OK) { fileBtn.textContent = "📁 File"; fileBtn.title = "Saving to a file needs Chrome, Edge or Opera"; return; }
+  if (!fileHandle) { fileBtn.textContent = "📁 Save to a file"; fileBtn.title = "Keep a copy of everything in a file on your computer"; return; }
+  fileBtn.textContent = "📁 " + fileHandle.name + (fileNeedsPermission ? " · reconnect" : fileErr ? " ⚠" : " ✓");
+  fileBtn.title = fileNeedsPermission ? "Click to allow saving to this file again"
+                : fileErr ? "Problem with the file: " + fileErr : "Saving automatically to " + fileHandle.name;
+}
+// Everything in one text: the cards, drawing, versions and every picture (as text, once each)
+async function buildFileText() {
+  const ids = new Set();
+  const mark = i => { if (i.img) ids.add(i.img); (i.images || []).forEach(m => m.img && ids.add(m.img)); };
+  items.forEach(mark); snaps.forEach(sn => sn.items.forEach(mark));
+  const images = {};
+  for (const id of ids) {
+    if (!dataCache.has(id)) { try { dataCache.set(id, await blobToDataUrl(await dbGet("images", id))); } catch (e) {} }
+    if (dataCache.has(id)) images[id] = dataCache.get(id);
+  }
+  return JSON.stringify({ app: "canvas-todo", version: 3, rev: myRev, savedAt: new Date().toISOString(), items, strokes, snaps, curId, images });
+}
+async function writeFile() {
+  if (!fileHandle) return;
+  if (fileBusy) return queueFileWrite();                // a write is running: try again shortly
+  fileBusy = true;
+  try {
+    if ((await fileHandle.queryPermission({ mode: "readwrite" })) !== "granted") { fileNeedsPermission = true; return; }
+    const w = await fileHandle.createWritable();
+    await w.write(await buildFileText()); await w.close();
+    fileNeedsPermission = false; fileErr = "";
+  } catch (e) { fileErr = e.name === "NotFoundError" ? "file missing" : String(e.message || e); }
+  finally { fileBusy = false; updateFileBtn(); }
+}
+function queueFileWrite() { if (!fileHandle) return; clearTimeout(fileTimer); fileTimer = setTimeout(writeFile, 1500); }
+
+async function readFileData(handle) {
+  try { const d = JSON.parse(await (await handle.getFile()).text()); return d && Array.isArray(d.items) ? d : null; }
+  catch (e) { return null; }                           // empty or not a Canvas Todo file
+}
+// Replace the canvas with the content of a file (pictures go back into the browser storage)
+async function applyFileData(data) {
+  for (const [id, url] of Object.entries(data.images || {})) {
+    if (urlCache[id]) continue;
+    const blob = dataUrlToBlob(url);
+    await dbPut("images", id, blob); urlCache[id] = URL.createObjectURL(blob); dataCache.set(id, url);
+  }
+  items = data.items; strokes = data.strokes || []; snaps = data.snaps || []; curId = data.curId || null;
+  myRev = Math.max(myRev, data.rev || 0);
+  drawAll(); render(); updateSplit();
+  await flush();
+}
+// Compare the file with the browser copy: the newer one wins
+async function syncWithFile() {
+  try {
+    const data = await readFileData(fileHandle);
+    if (data && (data.rev || 0) > myRev) { await applyFileData(data); setStatus("Loaded newer data from your file ✓"); }
+    else await writeFile();
+    fileErr = "";
+  } catch (e) { fileErr = e.name === "NotFoundError" ? "file missing" : String(e.message || e); }
+  updateFileBtn();
+}
+async function initFile() {                            // called when the page starts
+  if (!FS_OK || !db) return updateFileBtn();
+  try { fileHandle = (await dbGet("kv", "fileHandle")) || null; } catch (e) { fileHandle = null; }
+  if (fileHandle) {
+    try {
+      if ((await fileHandle.queryPermission({ mode: "readwrite" })) === "granted") await syncWithFile();
+      else fileNeedsPermission = true;                 // the browser wants a click first: see the button
+    } catch (e) { fileErr = String(e.message || e); }
+  }
+  updateFileBtn();
+}
+async function linkHandle(h) { const o = document.getElementById("fileOffer"); if (o) o.remove(); fileHandle = h; fileErr = ""; fileNeedsPermission = false; await dbPut("kv", "fileHandle", h); }
+async function chooseNewFile() {
+  const h = await showSaveFilePicker({ suggestedName: ((meta && meta.name) || "canvas-todo").replace(/[\\/:*?"<>|]+/g, "-") + ".json", types: FILE_TYPES, id: "canvas-todo", startIn: fileHandle || "documents" });
+  await linkHandle(h); await writeFile();
+}
+async function openExistingFile() {
+  const [h] = await showOpenFilePicker({ types: FILE_TYPES, multiple: false, id: "canvas-todo", startIn: fileHandle || "documents" });
+  const data = await readFileData(h);
+  if (!data) return alert("That file is not a Canvas Todo file.");
+  if (items.length || strokes.length) await saveSlot(true);          // safety copy of what you have now (see the version list)
+  await linkHandle(h);
+  fileNeedsPermission = (await h.requestPermission({ mode: "readwrite" })) !== "granted";
+  await applyFileData(data);
+  if (!fileNeedsPermission) await writeFile();
+}
+let reconnecting = false;
+async function reconnect() {
+  if (reconnecting) return;
+  reconnecting = true;
+  try {
+    if ((await fileHandle.requestPermission({ mode: "readwrite" })) === "granted") { fileNeedsPermission = false; await syncWithFile(); }
+  } finally { reconnecting = false; }
+}
+// The browser only lets a page write to a remembered file after a click. So your FIRST click anywhere in the page
+// brings the permission back (the browser shows its own "allow" question): no need to pick the file again.
+document.addEventListener("click", async () => {
+  if (!fileHandle || !fileNeedsPermission) return;
+  try { await reconnect(); } catch (e) {}
+  updateFileBtn();
+}, true);
+function fileProblem(e) {
+  alert("Could not use a file here: " + (e.message || e) + "\n\nSaving to a file works in Chrome, Edge and Opera, on the page opened from your own computer or deployment (not inside a preview).");
+}
+
+// The menu under the button
+const fileMenu = document.createElement("div"); fileMenu.id = "fileMenu"; fileMenu.hidden = true; document.body.appendChild(fileMenu);
+function closeFileMenu() { fileMenu.hidden = true; }
+function fileMenuItem(label, sub, fn) {
+  const b = document.createElement("button"); b.type = "button";
+  b.innerHTML = "<span></span><small></small>"; b.firstChild.textContent = label; b.lastChild.textContent = sub || "";
+  b.onclick = async () => { closeFileMenu(); try { await fn(); } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); } updateFileBtn(); };
+  fileMenu.appendChild(b);
+}
+fileBtn.onclick = async () => {
+  if (!FS_OK) return fileProblem({ message: "this browser has no file access" });
+  if (fileHandle && fileNeedsPermission) {              // one click to give the permission back
+    try { await reconnect(); } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); }
+    return updateFileBtn();
+  }
+  if (!fileMenu.hidden) return closeFileMenu();
+  closePop(); closeList(); closeTools();
+  fileMenu.innerHTML = "";
+  if (fileHandle) fileMenuItem("Save to the file now", fileHandle.name, writeFile);
+  fileMenuItem(fileHandle ? "Use another new file…" : "Save to a new file…", "You choose the place once; changes are then saved there automatically", chooseNewFile);
+  fileMenuItem("Open a saved file…", "Continue from a file (your current canvas is kept as a version)", openExistingFile);
+  if (fileHandle) fileMenuItem("Stop using this file", "The file stays on your computer", async () => { fileHandle = null; await dbDel("kv", "fileHandle"); });
+  fileMenu.hidden = false;
+  const r = fileBtn.getBoundingClientRect();
+  fileMenu.style.top = (r.bottom + 8) + "px";
+  fileMenu.style.left = Math.max(8, Math.min(r.right - fileMenu.offsetWidth, innerWidth - fileMenu.offsetWidth - 8)) + "px";
+};
+document.addEventListener("pointerdown", e => { if (!fileMenu.hidden && !fileMenu.contains(e.target) && !e.target.closest("#fileBtn")) closeFileMenu(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeFileMenu(); });
+updateFileBtn();
+
+// A page cannot write to your disk by itself: the browser requires that YOU choose the place once, with a click.
+// So when no file is linked, a small bar offers it right at the start. Once chosen, auto-save to the file is on for good.
+function offerFile() {
+  if (!FS_OK || fileHandle) return;
+  try { if (localStorage.getItem("canvas-todo-nofile") === "1") return; } catch (e) {}   // you said "Not now" before
+  const bar = document.createElement("div"); bar.id = "fileOffer";
+  const msg = document.createElement("span"); msg.textContent = "\u{1F4C1} Auto-save to a file on your computer is not on yet.";
+  const yes = document.createElement("button"); yes.textContent = "Choose where to save"; yes.className = "yes";
+  const no = document.createElement("button"); no.textContent = "Not now";
+  yes.onclick = async () => { try { await chooseNewFile(); } catch (e) { if (e && e.name !== "AbortError") fileProblem(e); } updateFileBtn(); };
+  no.onclick = () => { try { localStorage.setItem("canvas-todo-nofile", "1"); } catch (e) {} bar.remove(); };
+  bar.append(msg, yes, no); document.body.appendChild(bar);
+}
+
+/* =====================================================================
+   CANVAS LIST (names + preview pictures) AND HOME SCREEN
+   ===================================================================== */
+const homeOpen = () => new Promise((res, rej) => {
+  const rq = indexedDB.open("canvas-todo-home", 1);
+  rq.onupgradeneeded = () => rq.result.createObjectStore("canvases", { keyPath: "id" });
+  rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+});
+let hdb = null;
+const metaReq = (mode, make) => new Promise((res, rej) => {
+  const t = hdb.transaction("canvases", mode), r = make(t.objectStore("canvases"));
+  t.oncomplete = () => res(r.result); t.onerror = t.onabort = () => rej(t.error);
+});
+const metaAll = () => metaReq("readonly", st => st.getAll());
+const metaGet = id => metaReq("readonly", st => st.get(id));
+const metaPut = m => metaReq("readwrite", st => st.put(m));
+const metaDel = id => metaReq("readwrite", st => st.delete(id));
+
+// ---- inside a canvas ----
+let meta = null;                                           // {id, name, updated, count, thumb}
+const canvasName = document.getElementById("canvasName"), homeBtn = document.getElementById("homeBtn");
+
+// Draws a small picture of the canvas (cards, pictures and drawings) and returns it as a JPEG text
+async function makeThumb() {
+  const W = 480, H = 300, PAD = 16, z = zoom || 1;
+  const br = board.getBoundingClientRect();
+  const boxes = [...board.querySelectorAll(".card")].map(el => {
+    const r = el.getBoundingClientRect();
+    return { el, x: (r.left - br.left) / z, y: (r.top - br.top) / z, w: r.width / z, h: r.height / z };
+  });
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  boxes.forEach(b => { grow(b.x, b.y); grow(b.x + b.w, b.y + b.h); });
+  strokes.forEach(st => st.pts.forEach(p => grow(p[0], p[1])));
+  if (x0 > x1) return "";                                  // empty canvas: no picture
+  const k = Math.min((W - 2 * PAD) / Math.max(1, x1 - x0), (H - 2 * PAD) / Math.max(1, y1 - y0), 1.5);   // scale to fit
+  const ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), cs = e => getComputedStyle(e);
+  g.fillStyle = cs(document.body).backgroundColor; g.fillRect(0, 0, W, H);
+  // drawings
+  g.save(); g.translate(ox, oy); g.scale(k, k); g.lineCap = "round"; g.lineJoin = "round"; g.fillStyle = "none";
+  strokes.forEach(st => { try { g.strokeStyle = st.color; g.lineWidth = st.size; g.stroke(new Path2D(strokeD(st))); } catch (e) {} });
+  g.restore();
+  // cards
+  for (const b of boxes) {
+    const el = b.el, x = ox + b.x * k, y = oy + b.y * k, w = b.w * k, h = b.h * k, st = cs(el);
+    const free = el.classList.contains("free");
+    if (!free) {
+      g.fillStyle = st.backgroundColor; g.strokeStyle = cs(document.body).getPropertyValue("--border") || "#ccc"; g.lineWidth = 1;
+      g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, 4) : g.rect(x, y, w, h); g.fill(); g.stroke();
+    }
+    el.querySelectorAll("img").forEach(im => {             // only local pictures: web pictures would block saving the preview
+      if (!/^(blob|data):/.test(im.src) || !im.naturalWidth) return;
+      const r = im.getBoundingClientRect();
+      try { g.drawImage(im, ox + (r.left - br.left) / z * k, oy + (r.top - br.top) / z * k, r.width / z * k, r.height / z * k); } catch (e) {}
+    });
+    const body = el.querySelector(".body");                // text: a few lines, just enough to recognise the note
+    if (body && body.innerText.trim()) {
+      const fs = Math.max(6, parseFloat(cs(body).fontSize) * k);
+      g.font = fs + "px Inter, system-ui, sans-serif"; g.fillStyle = cs(body).color; g.textBaseline = "top";
+      let ty = y + 4 * k + (free ? 0 : 20 * k);
+      for (const line of body.innerText.split("\n")) {
+        if (ty + fs > y + h) break;
+        let t = line; while (t.length > 1 && g.measureText(t).width > w - 8 * k) t = t.slice(0, -1);
+        g.fillText(t, x + 5 * k, ty); ty += fs * 1.35;
+      }
+    }
+  }
+  try { return c.toDataURL("image/jpeg", 0.8); } catch (e) { return ""; }
+}
+
+async function initMeta() {
+  try {
+    hdb = await homeOpen();
+    meta = await metaGet(CANVAS_ID);
+    if (!meta) { meta = { id: CANVAS_ID, name: CANVAS_ID === "main" ? "My canvas" : "Untitled canvas", created: Date.now(), updated: Date.now(), count: 0, thumb: "" }; await metaPut(meta); }
+    canvasName.value = meta.name; document.title = meta.name + " – Canvas Todo";
+  } catch (e) { meta = null; }
+}
+// Refresh the preview + counters of this canvas (called after saves, a little delayed)
+let metaTimer = null, metaRev = -1;
+function queueMeta(force) { clearTimeout(metaTimer); metaTimer = setTimeout(() => updateMeta(force), 2000); }
+async function updateMeta(force) {
+  if (!hdb || !meta || (!force && metaRev === myRev)) return;
+  try {
+    const cur = await metaGet(CANVAS_ID); if (!cur) return;    // deleted from the home screen meanwhile: do not bring it back
+    metaRev = myRev;
+    cur.thumb = await makeThumb(); cur.count = items.length + strokes.length; cur.updated = force && !cur.thumb ? cur.updated : Date.now();
+    meta = cur; await metaPut(cur);
+  } catch (e) {}
+}
+canvasName.onchange = async () => {                        // rename
+  if (!hdb) return;
+  try { const cur = (await metaGet(CANVAS_ID)) || meta; cur.name = canvasName.value.trim() || "Untitled canvas"; canvasName.value = cur.name; meta = cur; await metaPut(cur); document.title = cur.name + " – Canvas Todo"; } catch (e) {}
+};
+canvasName.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") canvasName.blur(); };   // do not trigger canvas shortcuts while typing the name
+canvasName.onpaste = e => e.stopPropagation();
+homeBtn.onclick = async () => { try { await flush(); metaRev = -1; await updateMeta(true); } catch (e) {} location.hash = ""; };
+window.addEventListener("hashchange", async () => {        // back/forward button or a new address: save first, then reload
+  if (CANVAS_ID) { try { await flush(); await updateMeta(true); } catch (e) {} }
+  location.reload();
+});
+
+// ---- the home screen ----
+const ago = t => {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+  const h = Math.round(m / 60); if (h < 24) return h + " h ago";
+  const d = Math.round(h / 24); return d < 30 ? d + " d ago" : new Date(t).toLocaleDateString();
+};
+async function showHome() {
+  document.title = "Canvas Todo";
+  [...document.body.children].forEach(el => { if (el.tagName !== "SCRIPT") el.style.display = "none"; });   // hide the canvas screen
+  const home = document.createElement("div"); home.id = "home"; document.body.appendChild(home);
+  const st = document.createElement("style");
+  st.textContent = `
+    #home { flex: 1; overflow: auto; padding: 28px 22px 60px; max-width: 1200px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+    #home h1 { font-size: 22px; margin: 0 0 4px; } #home .sub { color: var(--muted); margin: 0 0 22px; }
+    #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+    .cv { display: flex; flex-direction: column; gap: 8px; position: relative; }
+    .cv .shot { aspect-ratio: 8 / 5; border-radius: 12px; border: 1px solid var(--border); background: var(--card) center / cover no-repeat; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; overflow: hidden; transition: transform .15s, box-shadow .15s, border-color .15s; }
+    .cv .shot:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .cv input { font: inherit; font-weight: 650; background: transparent; color: var(--text); border: 1px solid transparent; border-radius: 8px; padding: 3px 6px; margin: 0 -6px; width: calc(100% + 12px); box-sizing: border-box; }
+    .cv input:hover { border-color: var(--border); } .cv input:focus { outline: none; border-color: var(--accent); background: var(--card); }
+    .cv small { color: var(--muted); padding-left: 0; }
+    .cv .del { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s; font-size: 14px; line-height: 1; }
+    .cv:hover .del { opacity: 1; } @media (hover: none) { .cv .del { opacity: .85; } }
+    .cv.new .shot { border: 2px dashed var(--border); background: transparent; font-size: 15px; flex-direction: column; gap: 6px; }
+    .cv.new .shot:hover { color: var(--accent); }
+    .cv.new .plus { font-size: 34px; line-height: 1; }`;
+  document.head.appendChild(st);
+  try { hdb = await homeOpen(); } catch (e) { home.innerHTML = "<h1>Canvas Todo</h1><p class='sub'>⚠ Storage unavailable in this browser.</p>"; return; }
+
+  // The canvas you had before this feature existed shows up as "My canvas"
+  let list = await metaAll();
+  if (!list.some(m => m.id === "main")) {
+    try {
+      const names = indexedDB.databases ? (await indexedDB.databases()).map(d => d.name) : ["canvas-todo"];
+      if (names.includes("canvas-todo")) {
+        const od = await openDb("canvas-todo"); const had = await new Promise(r => { const q = od.transaction("kv").objectStore("kv").get("items"); q.onsuccess = () => r(!!q.result); q.onerror = () => r(false); }); od.close();
+        if (had) { await metaPut({ id: "main", name: "My canvas", created: Date.now(), updated: Date.now(), count: 0, thumb: "" }); list = await metaAll(); }
+      }
+    } catch (e) {}
+  }
+  list.sort((a, b) => b.updated - a.updated);
+
+  home.innerHTML = "<h1>Your canvases</h1><p class='sub'>Pick a canvas to open it, or start a new one.</p><div id='grid'></div>";
+  const grid = home.querySelector("#grid");
+  const open = id => { location.hash = "#c=" + id; };
+  const make = tag => document.createElement(tag);
+
+  // "New canvas" card
+  const nw = make("div"); nw.className = "cv new";
+  nw.innerHTML = "<div class='shot'><div class='plus'>+</div>New canvas</div>";
+  nw.querySelector(".shot").onclick = async () => {
+    const name = (prompt("Name of the new canvas:", "Untitled canvas") || "").trim(); if (!name) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await metaPut({ id, name, created: Date.now(), updated: Date.now(), count: 0, thumb: "" }); open(id);
+  };
+  grid.appendChild(nw);
+
+  for (const m of list) {                                  // one card per canvas: picture on top, name below
+    const d = make("div"); d.className = "cv";
+    const shot = make("div"); shot.className = "shot";
+    if (m.thumb) shot.style.backgroundImage = "url(" + m.thumb + ")"; else shot.textContent = m.count ? "Open to create a preview" : "Empty canvas";
+    shot.onclick = () => open(m.id);
+    const name = make("input"); name.value = m.name; name.maxLength = 60; name.spellcheck = false; name.title = "Click to rename";
+    name.onchange = async () => { const cur = (await metaGet(m.id)) || m; cur.name = name.value.trim() || "Untitled canvas"; name.value = cur.name; await metaPut(cur); };
+    name.onkeydown = e => { if (e.key === "Enter") name.blur(); };
+    const info = make("small"); info.textContent = (m.count ? m.count + " item" + (m.count === 1 ? "" : "s") + " · " : "") + ago(m.updated);
+    const del = make("button"); del.className = "del"; del.textContent = "✕"; del.title = "Delete this canvas";
+    del.onclick = async () => {
+      if (!confirm('Delete "' + m.name + '" and everything in it? This cannot be undone.')) return;
+      await metaDel(m.id);
+      try { indexedDB.deleteDatabase(dbNameOf(m.id)); } catch (e) {}
+      d.remove();
+    };
+    d.append(shot, name, info, del); grid.appendChild(d);
+  }
+  // the list refreshes when another tab changes something
+  window.addEventListener("focus", () => { if (!document.activeElement || document.activeElement.tagName !== "INPUT") location.reload(); });
+}
+
+if (CANVAS_ID) boot(); else showHome();
+</script>
+</body>
+</html>
