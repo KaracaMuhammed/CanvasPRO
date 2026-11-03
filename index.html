@@ -42,7 +42,7 @@
 
   /* ---------- CANVAS (scrollable, dotted background) ---------- */
   .scroller { flex: 1; overflow: auto; }
-  #board { position: relative; width: 3000px; height: 2000px;
+  #board { position: absolute; left: var(--pad); top: var(--pad); width: 3000px; height: 2000px;
     background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 24px 24px; background-position: -12px -12px; }   /* shifted so the dots sit exactly on multiples of 24 (the snap points) */
 
   /* ---------- CARDS (notes and images) ---------- */
@@ -137,12 +137,14 @@
   #drawTools { display: inline-flex; gap: 8px; align-items: center; }
   #drawTools[hidden] { display: none; }
   /* DRAWING layer: an SVG under the cards. Pointer events only in draw mode, then it sits ON TOP of the cards. */
-  #ink { position: absolute; left: 0; top: 0; width: 3000px; height: 2000px; pointer-events: none; }
+  #ink { position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: calc(3000px + 2 * var(--pad)); height: calc(2000px + 2 * var(--pad)); overflow: visible; pointer-events: none; }   /* covers the margin around the board as well */
   #ink.on { z-index: 20; pointer-events: auto; cursor: crosshair; touch-action: none; }
   #ink.on.erase { cursor: cell; }
   #ink path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
   /* ---------- ZOOM: the stage has the scaled size, the board is scaled inside it ---------- */
-  #stage { position: relative; width: 3000px; height: 2000px; }
+  /* --pad = empty space around the board (same number as PAD in the script). It lets us scroll far enough to centre content that sits near an edge. */
+  :root { --pad: 900px; }
+  #stage { position: relative; width: calc(3000px + 2 * var(--pad)); height: calc(2000px + 2 * var(--pad)); }
   #board { transform-origin: 0 0; }
   /* ---------- Segmented groups (zoom) and the SPLIT save button ---------- */
   .rightbar { margin-left: auto; display: inline-flex; gap: 10px; align-items: center; }
@@ -469,6 +471,7 @@ let GRID = 24;                                 // grid spacing in px, changeable
 try { GRID = +localStorage.getItem("canvas-todo-grid") || 24; } catch (e) {}
 let snapOn = false;
 try { snapOn = localStorage.getItem("canvas-todo-snap") === "1"; } catch (e) {}
+if (window.CANVAS_ACCOUNT && (window.CANVAS_ACCOUNT.locked || []).includes("snap")) snapOn = false;   // Free plan: snap to grid is Pro
 const snapW = w => Math.max(144, Math.round(w / GRID) * GRID);   // widths snap too (never narrower than 144px)
 const snap = v => snapOn ? Math.round(v / GRID) * GRID : v;   // nearest grid point (or unchanged when off)
 
@@ -630,6 +633,11 @@ async function migrateOld() {
 }
 
 // Starts the app: open the database, load everything, draw the canvas
+// Empty margin around the board (keep in sync with --pad in the CSS). Scroll positions include it, board positions do not.
+const PAD = 900;
+// Top-left corner of what you currently see, in board coordinates (never negative). Used to place new cards in view.
+const viewX = () => Math.max(-PAD, (scroller.scrollLeft - PAD) / zoom);
+const viewY = () => Math.max(-PAD, (scroller.scrollTop - PAD) / zoom);
 async function boot() {
   try { db = await openDb(); try { navigator.storage.persist(); } catch (e) {} }   // persist() asks the browser not to evict our data
   catch (e) { db = null; setStatus("⚠ Storage unavailable"); }
@@ -652,10 +660,35 @@ async function boot() {
     try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
   }
   drawAll(); render();
+  centerView();                         // open the canvas looking at its content
   await initMeta();                     // name + preview of this canvas for the home screen
   setTimeout(() => queueMeta(true), 1500);   // first preview picture once everything is drawn
   await initFile();                     // reconnect to the file on your computer (if you linked one)
   offerFile();                          // no file yet: offer to choose one (one click)
+}
+
+// ----- Smart start position -----
+// When a canvas opens we look at the bounding box of EVERYTHING on it (cards + drawings), from the farthest element on the left
+// to the farthest on the right, and from the top to the bottom. We zoom out just enough to fit that box on the screen
+// (never zoom IN past 100%) and put the middle of the box in the middle of the screen. An empty canvas stays at the top-left.
+function centerView() {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  board.querySelectorAll(".card").forEach(c => {            // every card: position and size on the board (board units, not scaled)
+    x1 = Math.min(x1, c.offsetLeft); y1 = Math.min(y1, c.offsetTop);
+    x2 = Math.max(x2, c.offsetLeft + c.offsetWidth); y2 = Math.max(y2, c.offsetTop + c.offsetHeight);
+  });
+  strokes.forEach(st => (st.pts || []).forEach(([px, py]) => {   // every drawn point
+    x1 = Math.min(x1, px); y1 = Math.min(y1, py); x2 = Math.max(x2, px); y2 = Math.max(y2, py);
+  }));
+  if (x1 === Infinity) { setZoom(1); scroller.scrollLeft = PAD; scroller.scrollTop = PAD; return; }   // empty canvas: start at the board's top-left corner
+  const view = scroller.getBoundingClientRect(), margin = 48;      // margin = free space kept around the content (screen px)
+  const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+  const fit = Math.min((view.width - 2 * margin) / w, (view.height - 2 * margin) / h);   // the zoom at which everything just fits
+  setZoom(Math.min(1, fit));                                       // zoom out to fit; setZoom keeps it between 25% and 250%
+  // centre of the content on screen; if it still does not fit (more than the 25% minimum zoom can show) show its top-left corner instead
+  const cw = w * zoom, ch = h * zoom;
+  scroller.scrollLeft = PAD + (cw + 2 * margin <= view.width  ? (x1 + x2) / 2 * zoom - view.width / 2  : x1 * zoom - margin);
+  scroller.scrollTop  = PAD + (ch + 2 * margin <= view.height ? (y1 + y2) / 2 * zoom - view.height / 2 : y1 * zoom - margin);
 }
 
 // (save() now lives in the STORAGE section above)
@@ -674,18 +707,20 @@ const fixUrl = u => { u = u.trim(); return !u || /^https?:\/\//i.test(u) ? u : "
 
 /* ---------- Add cards ---------- */
 function addNote(x, y) {
+  if (itemLimitReached()) return;                // Free plan limit
   // Default position: top-left of what you currently see
-  x = x ?? (scroller.scrollLeft + 40 + Math.random() * 80) / zoom;
-  y = y ?? (scroller.scrollTop + 40 + Math.random() * 80) / zoom;
+  x = x ?? viewX() + (40 + Math.random() * 80) / zoom;
+  y = y ?? viewY() + (40 + Math.random() * 80) / zoom;
   x = snap(x); y = snap(y);                      // new notes also land on a grid point when snapping is on
   // images: pictures embedded INSIDE the note, each { src, link }
   const item = { id: uid(), type: "note", x, y, w: 240, text: "", done: false, images: [], priority: 0 };
   items.push(item); save(); render(item.id);   // render + open editor
 }
 async function addImage(blob, x, y, url) {
+  if (itemLimitReached()) return;                // Free plan limit
   // blob = the picture (stored in its own store). url = only used when a link could not be downloaded.
   const img = blob ? await putImage(blob) : undefined;
-  if (x === undefined) { x = (scroller.scrollLeft + 60) / zoom; y = (scroller.scrollTop + 60) / zoom; }
+  if (x === undefined) { x = viewX() + 60 / zoom; y = viewY() + 60 / zoom; }
   items.push({ id: uid(), type: "image", x: snap(x), y: snap(y), w: 240, img, url, link: "", text: "" });
   save(); render();
 }
@@ -787,16 +822,17 @@ function copyNote(item) {
   })();
 }
 async function pasteNote(x, y) {
+  if (itemLimitReached()) return;                              // Free plan limit
   const clip = readNoteClip(); if (!clip) return;
   for (const id of Object.keys(clip.blobs || {})) {              // pictures that come from another canvas: store them here first
     if (urlCache[id]) continue;
     try { const b = dataUrlToBlob(clip.blobs[id]); urlCache[id] = URL.createObjectURL(b); keep.add(id); await dbPut("images", id, b); } catch (e) {}
   }
   const n = JSON.parse(JSON.stringify(clip.data));       // a real copy: new id, same pictures (they are shared, not duplicated)
-  n.id = uid(); n.x = snap(Math.max(0, x)); n.y = snap(Math.max(0, y));
+  n.id = uid(); n.x = snap(Math.max(-PAD, x)); n.y = snap(Math.max(-PAD, y));
   items.push(n); save(); render();
 }
-if (pasteNoteBtn) pasteNoteBtn.onclick = () => pasteNote((scroller.scrollLeft + 60) / zoom + Math.random() * 60, (scroller.scrollTop + 60) / zoom + Math.random() * 60);
+if (pasteNoteBtn) pasteNoteBtn.onclick = () => pasteNote(viewX() + 60 / zoom + Math.random() * 60, viewY() + 60 / zoom + Math.random() * 60);
 updatePasteBtn();
 
 function makeCard(item, editing) {
@@ -1093,6 +1129,7 @@ function enableImageMove(handle, box, imgEl, item, idx, wrap) {
       if (t === item) { item.images.splice(idx, 1); item.images.splice(k, 0, im); }                          // reorder
       else if (t && t.type === "note") { item.images.splice(idx, 1); (t.images = t.images || []).push(im); }   // into another note
       else {                                                                                                   // out onto the canvas
+        if (itemLimitReached()) return;                                                                        // Free plan limit
         item.images.splice(idx, 1);
         const [bx, by] = toBoard(m.clientX, m.clientY);
         items.push({ id: uid(), type: "image", x: snap(bx - 40), y: snap(by - 20), w: 240, img: im.img, url: im.url, link: im.link || "", text: "" });
@@ -1180,6 +1217,7 @@ function setDeadline(item, ms) {
   save(); closePop(); render();
 }
 function openPop(chip, item) {
+  if (lockedFeature("deadlines")) return;          // Pro feature
   if (popFor === item && !pop.hidden) return closePop();          // clicking the chip again closes it
   popFor = item; pop.innerHTML = "";
   const add = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; pop.appendChild(e); return e; };
@@ -1217,6 +1255,16 @@ function openPop(chip, item) {
 const YT_RE = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^\s]*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/g;
 function makeVideos(item) {
   const wrap = document.createElement("div");
+  if (ACCOUNT && (ACCOUNT.locked || []).includes("youtube")) {   // Free plan: no preview, just a small hint
+    if (YT_RE.test(item.text || "")) {
+      YT_RE.lastIndex = 0;
+      const hint = document.createElement("button"); hint.className = "ytlock"; hint.textContent = "\u25B6 Video preview \u00b7 Pro";
+      hint.style.cssText = "background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:4px 10px;margin-top:6px;cursor:pointer;font:inherit;font-size:12px";
+      hint.onclick = e => { e.stopPropagation(); showUpgrade("youtube"); };
+      wrap.appendChild(hint);
+    }
+    YT_RE.lastIndex = 0; return wrap;
+  }
   const ids = [...new Set([...(item.text || "").matchAll(YT_RE)].map(m => m[1]))];   // unique video ids found in the text
   ids.forEach(id => {
     const a = document.createElement("a");                       // the whole preview is a link: click = open the video
@@ -1243,7 +1291,7 @@ function enableDrag(el, handle, item) {
     if (!sel.items.has(item.id)) clearSel();                           // dragging something that is not selected: forget the selection
     const sx = e.clientX, sy = e.clientY, ox = item.x, oy = item.y;   // where the drag started
     handle.onpointermove = m => {
-      item.x = snap(Math.max(0, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(0, oy + (m.clientY - sy) / zoom));   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
+      item.x = snap(Math.max(-PAD, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(-PAD, oy + (m.clientY - sy) / zoom));   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
       el.style.left = item.x + "px"; el.style.top = item.y + "px";
     };
     handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; save(); };
@@ -1262,7 +1310,8 @@ file.onchange = async () => {
   pendingNote = null; file.value = "";
 };
 // Double-click empty canvas = new note right there
-board.ondblclick = e => { if (e.target === board) addNote(...toBoard(e.clientX, e.clientY)); };
+// The empty margin around the board (stage) works like the board itself, so you can add things anywhere you can scroll to.
+document.getElementById("stage").ondblclick = e => { if (e.target === board || e.target === stage) addNote(...toBoard(e.clientX, e.clientY)); };
 // (pasting and dropping pictures is handled in the PASTE section below)
 
 // Close the popover on outside click, Escape, or scroll
@@ -1279,6 +1328,7 @@ function updateSnapBtn() {
   snapBtn.classList.toggle("on", snapOn);
 }
 snapBtn.onclick = () => {
+  if (lockedFeature("snap")) return;               // Pro feature
   snapOn = !snapOn;
   try { localStorage.setItem("canvas-todo-snap", snapOn ? "1" : "0"); } catch (e) {}
   if (snapOn) items.forEach(i => {                // turning it on aligns everything that already exists
@@ -1325,6 +1375,7 @@ try { strokes = CANVAS_ID === "main" ? JSON.parse(localStorage.getItem(DRAW_KEY)
 const saveStrokes = () => save();   // the drawing is saved together with the cards (see STORAGE)
 
 const ink = document.createElementNS(SVGNS, "svg"); ink.id = "ink";
+ink.setAttribute("viewBox", (-PAD) + " " + (-PAD) + " " + (3000 + 2 * PAD) + " " + (2000 + 2 * PAD));   // the layer starts PAD before the board, but drawings keep board coordinates
 board.prepend(ink);                           // first child = the cards (added after it) appear on top
 
 // Builds a smooth SVG path from a list of points (curves through the midpoints)
@@ -1409,6 +1460,7 @@ const sp = p => snapOn ? [snap(p[0]), snap(p[1])] : p;  // shapes snap to the gr
 
 ink.onpointerdown = e => {
   if (!drawOn || e.button !== 0) return;               // only the left button draws
+  if (penTool.value !== "erase" && isFree() && ACCOUNT.limits.drawings != null && strokes.length >= ACCOUNT.limits.drawings) { showUpgrade("drawings"); return; }   // Free plan: limited number of drawings per canvas
   ink.setPointerCapture(e.pointerId);
   const [x, y] = boardPt(e), tool = penTool.value;
   if (tool === "erase") { erasingNow = true; erasePoint(x, y); return; }
@@ -1444,7 +1496,10 @@ function updateDrawUi() {
   drawTools.hidden = !drawOn;                           // pen tools only show in draw mode
   ink.classList.toggle("on", drawOn); ink.classList.toggle("erase", erasing);
 }
-drawBtn.onclick = () => { drawOn = !drawOn; closePop(); updateDrawUi(); };
+drawBtn.onclick = () => { if (!drawOn && lockedFeature("drawing")) return; drawOn = !drawOn; closePop(); updateDrawUi(); };
+// Esc = switch drawing off (also while a tool menu is open)
+// Esc = leave drawing mode. "true" = capture phase, so it works wherever the focus is (even in a field that stops other key events).
+document.addEventListener("keydown", e => { if (e.key === "Escape" && drawOn) { drawOn = false; updateDrawUi(); if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); } }, true);
 penTool.onchange = () => { erasing = penTool.value === "erase"; updateDrawUi(); };   // the tool menu: pen, shapes or eraser
 undoBtn.onclick = () => { strokes.pop(); drawAll(); saveStrokes(); };
 clearBtn.onclick = () => {                              // clears at once; a 5-second Undo brings the drawing back
@@ -1468,11 +1523,11 @@ function setZoom(z, cx, cy) {
   z = Math.min(2.5, Math.max(0.25, z));
   const sr = scroller.getBoundingClientRect();
   if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
-  const bx = (scroller.scrollLeft + cx - sr.left) / zoom, by = (scroller.scrollTop + cy - sr.top) / zoom;   // canvas point under the cursor
+  const bx = (scroller.scrollLeft - PAD + cx - sr.left) / zoom, by = (scroller.scrollTop - PAD + cy - sr.top) / zoom;   // canvas point under the cursor
   zoom = z;
   board.style.transform = "scale(" + zoom + ")";
-  stage.style.width = 3000 * zoom + "px"; stage.style.height = 2000 * zoom + "px";
-  scroller.scrollLeft = bx * zoom - (cx - sr.left); scroller.scrollTop = by * zoom - (cy - sr.top);
+  stage.style.width = 3000 * zoom + 2 * PAD + "px"; stage.style.height = 2000 * zoom + 2 * PAD + "px";
+  scroller.scrollLeft = PAD + bx * zoom - (cx - sr.left); scroller.scrollTop = PAD + by * zoom - (cy - sr.top);
   zoomLbl.textContent = Math.round(zoom * 100) + "%";
   try { localStorage.setItem("canvas-todo-zoom", zoom); } catch (e) {}
   closePop(); closeList();
@@ -1490,8 +1545,9 @@ zoomLbl.onclick = () => setZoom(1);
    FREE TEXT  (a card of type "text": just text on the canvas, no frame)
    ===================================================================== */
 function addText(x, y) {
-  x = x ?? (scroller.scrollLeft + 60 + Math.random() * 80) / zoom;
-  y = y ?? (scroller.scrollTop + 60 + Math.random() * 80) / zoom;
+  if (itemLimitReached()) return;                // Free plan limit
+  x = x ?? viewX() + (60 + Math.random() * 80) / zoom;
+  y = y ?? viewY() + (60 + Math.random() * 80) / zoom;
   const item = { id: uid(), type: "text", x: snap(x), y: snap(y), w: 260, text: "", size: 22 };
   items.push(item); save(); render(item.id);            // opens the editor right away
 }
@@ -1535,7 +1591,7 @@ document.addEventListener("pointermove", e => { lastClient = [e.clientX, e.clien
 function pasteSpot() {                                  // under the pointer if it is over the canvas, else top-left of the view
   const sr = scroller.getBoundingClientRect(), c = lastClient;
   if (c && c[0] > sr.left && c[0] < sr.right && c[1] > sr.top && c[1] < sr.bottom) return toBoard(c[0], c[1]);
-  return [(scroller.scrollLeft + 60) / zoom, (scroller.scrollTop + 60) / zoom];
+  return [viewX() + 60 / zoom, viewY() + 60 / zoom];
 }
 // Finds an image address in pasted / dropped data (the <img> of copied web content, or a plain link)
 function imageUrlFrom(dt) {
@@ -1626,6 +1682,56 @@ async function persistSnaps() {
   clearTimeout(saveTimer); await flush();               // writes the versions together with the canvas (see STORAGE)
   updateSplit();
 }
+// ===== ACCOUNT / PLAN (only active when served by the Canvas PRO server) =====
+// The server writes window.CANVAS_ACCOUNT into the page. When it is missing (standalone file) nothing is limited.
+const ACCOUNT = window.CANVAS_ACCOUNT || null;
+const isFree = () => !!ACCOUNT && ACCOUNT.plan !== "pro";
+// Is this feature locked for the current person? If yes, the upgrade window opens and we return true (caller must stop).
+function lockedFeature(name) {
+  if (!ACCOUNT || !(ACCOUNT.locked || []).includes(name)) return false;
+  showUpgrade(name); return true;
+}
+// Free plan: a canvas holds at most N items (notes, images, texts). Returns true when the limit is reached.
+function itemLimitReached() {
+  if (!isFree() || !ACCOUNT.limits.items || items.length < ACCOUNT.limits.items) return false;
+  showUpgrade("items"); return true;
+}
+async function postJson(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Something went wrong.");
+  return d;
+}
+// The upgrade window: explains the limit and sends the person to Stripe Checkout
+function showUpgrade(reason) {
+  const L = ACCOUNT.limits, P = ACCOUNT.pricing || {};
+  const why = reason === "canvases" ? "The Free plan includes " + L.canvases + " canvases."
+            : reason === "versions" ? "The Free plan keeps your last " + L.versions + " versions."
+            : reason === "items" ? "The Free plan holds up to " + L.items + " items on a canvas."
+            : reason === "deadlines" ? "Deadlines with a live countdown are a Pro feature."
+            : reason === "youtube" ? "YouTube previews are a Pro feature."
+            : reason === "drawings" ? "The Free plan allows " + L.drawings + " drawings on a canvas."
+            : reason === "drawing" ? "Drawing and shapes are a Pro feature."
+            : "Get more room with Pro.";
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px";
+  ov.innerHTML = "<div style='background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;max-width:420px;width:100%;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.4);font-family:inherit'>"
+    + "<h2 style='margin:0 0 6px;font-size:22px'>Upgrade to Pro</h2><p style='margin:0 0 18px;color:var(--muted)'>" + why + " Pro unlocks everything: unlimited canvases, items and drawings, deadlines, YouTube previews and your full version history.</p>"
+    + "<div style='display:grid;gap:10px'><button data-p='monthly' class='upb'>" + (P.monthly || "Monthly") + "</button><button data-p='yearly' class='upb'>" + (P.yearly || "Yearly") + "</button></div>"
+    + "<div class='uperr' style='color:#ef4444;font-size:13px;min-height:18px;margin-top:10px'></div>"
+    + "<button class='upx' style='background:none;border:0;color:var(--muted);cursor:pointer;margin-top:4px;font:inherit'>Not now</button></div>";
+  ov.querySelectorAll(".upb").forEach(b => {
+    b.style.cssText = "padding:13px 16px;border-radius:12px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer";
+    b.onclick = async () => {
+      b.disabled = true; ov.querySelector(".uperr").textContent = "";
+      try { location.href = (await postJson("/api/checkout", { plan: b.dataset.p })).url; }   // Stripe's payment page
+      catch (e) { ov.querySelector(".uperr").textContent = e.message; b.disabled = false; }
+    };
+  });
+  ov.querySelector(".upx").onclick = () => ov.remove();
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
 async function saveSlot(auto) {
   const match = [curSnap(), snaps[0]].find(sn => sn && sameAs(sn));   // is this exact canvas already saved?
   if (match) {                                          // yes: no duplicate
@@ -1637,6 +1743,7 @@ async function saveSlot(auto) {
   const sn = { id: uid(), n, date: Date.now(), auto: !!auto, items: clone(items), strokes: clone(strokes) };
   snaps.unshift(sn); curId = sn.id;
   if (auto) snaps.filter(x => x.auto).slice(12).forEach(x => snaps.splice(snaps.indexOf(x), 1));   // keep the 12 newest automatic copies
+  if (isFree() && snaps.length > ACCOUNT.limits.versions) { snaps.length = ACCOUNT.limits.versions; if (curId && !snaps.some(x => x.id === curId)) curId = sn.id; }   // Free plan: newest versions only
   listPage = 0;                                         // a new save: the list goes back to the top
   await persistSnaps();
   if (!listPanel.hidden) { renderList(); listPanel.scrollTop = 0; }
@@ -1854,8 +1961,8 @@ function startGroupDrag(e, captureEl) {
 }
 
 const marq = document.createElement("div"); marq.id = "marquee"; board.appendChild(marq);   // the selection rectangle
-board.addEventListener("pointerdown", e => {
-  if (e.target !== board || drawOn || e.button !== 0) return;       // only on the empty canvas, not on a card, not while drawing
+stage.addEventListener("pointerdown", e => {
+  if ((e.target !== board && e.target !== stage) || drawOn || e.button !== 0) return;       // only on the empty canvas, not on a card, not while drawing
   const [x, y] = toBoard(e.clientX, e.clientY);
   const hit = [...strokes].reverse().find(st => hitStroke(st, x, y));   // did you press on a drawing?
   board.setPointerCapture(e.pointerId);
@@ -2322,6 +2429,20 @@ async function showHome() {
   list.sort((a, b) => b.updated - a.updated);
 
   home.innerHTML = "<div class='wrap'><div class='brand'>" + WORDMARK_SVG + "</div><div class='head'><h1>Your canvases</h1><p class='sub'>Pick one to open it, or start a new one</p></div><div id='grid'></div></div>";
+  if (ACCOUNT) {                                           // account bar: plan, upgrade / billing, log out
+    const bar = document.createElement("div");
+    bar.style.cssText = "display:flex;justify-content:flex-end;align-items:center;gap:10px;margin:-28px 0 18px;font-size:13px;color:var(--muted)";
+    const pro = ACCOUNT.plan === "pro";
+    bar.innerHTML = "<span title='" + ACCOUNT.email + "' style='padding:3px 10px;border-radius:99px;border:1px solid var(--border);color:var(--text)'>" + (pro ? "Pro" : "Free") + "</span>"
+      + "<button class='ab-plan'>" + (pro ? "Manage billing" : "Upgrade to Pro") + "</button><button class='ab-out'>Log out</button>";
+    bar.querySelectorAll("button").forEach(b => b.style.cssText = "background:none;border:0;color:var(--link);cursor:pointer;font:inherit;padding:2px 4px");
+    bar.querySelector(".ab-plan").onclick = async () => {
+      if (!pro) return showUpgrade();
+      try { location.href = (await postJson("/api/portal")).url; } catch (e) { alert(e.message); }   // Stripe customer portal
+    };
+    bar.querySelector(".ab-out").onclick = async () => { try { await postJson("/api/logout"); } catch (e) {} location.href = "/"; };
+    home.querySelector(".wrap").insertBefore(bar, home.querySelector(".brand"));
+  }
   const grid = home.querySelector("#grid");
   const open = id => { location.hash = "#c=" + id; };
   const make = tag => document.createElement(tag);
@@ -2330,6 +2451,7 @@ async function showHome() {
   const nw = make("div"); nw.className = "cv new";
   nw.innerHTML = "<div class='shot'><div class='plus'>+</div>New canvas</div>";
   nw.querySelector(".shot").onclick = async () => {
+    if (isFree() && list.length >= ACCOUNT.limits.canvases) { showUpgrade("canvases"); return; }   // Free plan limit
     const name = (prompt("Name of the new canvas:", "Untitled canvas") || "").trim(); if (!name) return;
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     await metaPut({ id, name, created: Date.now(), updated: Date.now(), count: 0, thumb: "" }); open(id);
@@ -2397,6 +2519,12 @@ function showMobileNotice() {
 
 if (BLOCK_MOBILE && isMobile()) showMobileNotice();
 else if (CANVAS_ID) boot(); else showHome();
+if (ACCOUNT) {                                             // coming from the pricing page / back from Stripe
+  const q = new URLSearchParams(location.search);
+  if (q.get("upgrade") && isFree()) setTimeout(() => showUpgrade(), 300);
+  if (q.get("welcome") === "pro") setTimeout(() => { try { toast("Welcome to Pro. Thank you!", "", 4000); } catch (e) {} }, 400);
+  if (q.has("upgrade") || q.has("welcome")) history.replaceState(null, "", location.pathname + location.hash);
+}
 </script>
 </body>
 </html>
