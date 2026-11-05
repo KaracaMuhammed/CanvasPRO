@@ -42,8 +42,13 @@
 
   /* ---------- CANVAS (scrollable, dotted background) ---------- */
   .scroller { flex: 1; overflow: auto; }
-  #board { position: absolute; left: var(--pad); top: var(--pad); width: 3000px; height: 2000px;
-    background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: 24px 24px; background-position: -12px -12px; }   /* shifted so the dots sit exactly on multiples of 24 (the snap points) */
+  #board { position: absolute; left: 0; top: 0; width: 3000px; height: 2000px; --grid: 24px; --pad: 1500px; --layer-w: 6000px; --layer-h: 5000px; }   /* left/top/--pad/--layer-* are set by layoutStage() */
+  /* The dots are drawn by a layer that is bigger than the board (it also covers the margin), so they never stop near the edges.
+     Shifted by half a tile so the dots sit exactly on multiples of the grid size (the snap points). Shown only while snapping is on (class .dots). */
+  #board::before { content: ""; display: none; position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: var(--layer-w); height: var(--layer-h);
+    background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: var(--grid) var(--grid);
+    background-position: calc(var(--pad) - var(--grid) / 2) calc(var(--pad) - var(--grid) / 2); pointer-events: none; }
+  #board.dots::before { display: block; }
 
   /* ---------- CARDS (notes and images) ---------- */
   .card { position: absolute; box-sizing: border-box; width: 240px; min-width: 140px; background: var(--card); border: 1px solid var(--border);
@@ -94,7 +99,7 @@
   @keyframes glow { 0%,100% { box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 0 0 0 rgba(239,68,68,.0); }
                     50%     { box-shadow: 0 4px 18px rgba(239,68,68,.28), 0 0 0 3px rgba(239,68,68,.12); } }
   /* the popover that opens under the chip */
-  #pop { position: fixed; z-index: 50; width: 240px; box-sizing: border-box; padding: 14px; border-radius: 16px;
+  #pop { position: fixed; z-index: 50; width: 264px; box-sizing: border-box; padding: 14px; border-radius: 16px;
     background: var(--card); color: var(--text); border: 1px solid var(--border); font-size: 13px;
     box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
   #pop[hidden] { display: none; }
@@ -107,7 +112,23 @@
   #pop .pl { margin: 12px 0 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
   #pop input { width: 100%; box-sizing: border-box; padding: 7px 8px; border-radius: 10px; font: inherit; font-size: 13px;
     background: transparent; color: var(--text); border: 1px solid var(--border); color-scheme: light dark; }
-  #pop button.rm2 { width: 100%; margin-top: 10px; color: #ef4444; }
+  #pop button.rm2 { width: 100%; margin-top: 8px; color: #ef4444; border-color: transparent; }
+  /* the calendar */
+  #pop .cal { border: 1px solid var(--border); border-radius: 12px; padding: 8px; }
+  #pop .calhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
+  #pop .calhead button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; font-size: 16px; line-height: 1; }
+  #pop .calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  #pop .calgrid.wk span { font-size: 10px; color: var(--muted); padding: 2px 0; }
+  #pop .calgrid button { border: 0; border-radius: 50%; padding: 0; height: 30px; font-size: 12px; background: transparent; }
+  #pop .calgrid button.today { box-shadow: inset 0 0 0 1px var(--muted); }
+  #pop .calgrid button.pick { background: var(--accent); color: #fff; box-shadow: none; font-weight: 650; }
+  #pop .trow { display: flex; align-items: center; justify-content: space-between; margin: 10px 0 10px; }
+  #pop .tgroup { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--border); border-radius: 10px; padding: 2px 6px; }
+  #pop input.tbox { width: 34px; border: 0; padding: 5px 0; text-align: center; background: transparent; -moz-appearance: textfield; appearance: textfield; }
+  #pop input.tbox::-webkit-inner-spin-button, #pop input.tbox::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  #pop input.tbox:focus { outline: none; color: var(--accent); }
+  #pop button.setbtn { width: 100%; padding: 9px; background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; font-size: 13px; }
+  #pop button.setbtn:hover { background: var(--accent); filter: brightness(1.1); }
   /* PRIORITIES: colored left edge on the card + a small badge in the header (edit the colors here) */
   .card.prio-1 { border-left: 5px solid #3b82f6; }   /* low    = blue   */
   .card.prio-2 { border-left: 5px solid #f59e0b; }   /* medium = orange */
@@ -116,6 +137,32 @@
   .grip button.p1 { background: #3b82f6; border-color: #3b82f6; color: #fff; }
   .grip button.p2 { background: #f59e0b; border-color: #f59e0b; color: #fff; }
   .grip button.p3 { background: #e5484d; border-color: #e5484d; color: #fff; }
+  /* SPLIT buttons with a small arrow (Draw and Snap to grid): same look as the other toolbar buttons, with a thin divider before the arrow */
+  .bar .split.soft { border-radius: 10px; background: var(--card); }
+  .bar .split.soft button { padding: 7px 14px; }
+  .bar .split.soft button.more { padding: 7px 9px; font-size: 11px; color: var(--muted); }
+  .bar .split.soft button + button { border-left: 1px solid var(--border); }
+  .bar .split.soft.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }       /* lit up while the feature is on */
+  .bar .split.soft.on button, .bar .split.soft button.on { color: var(--accent); background: transparent; border-color: transparent; }
+  .bar .split.soft.on button + button { border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+  /* the Save-version "split" look (blue frame, glow) is defined further down for ALL .split: these #id rules put Draw / Snap back to a quiet look */
+  .bar #snapGrp, .bar #drawGrp { border-color: var(--border); box-shadow: none; }
+  .bar #snapGrp.on, .bar #drawGrp.on { border-color: var(--accent); }
+  .bar #snapGrp button, .bar #drawGrp button { color: var(--text); font-weight: 500; }
+  .bar #snapGrp button.more, .bar #drawGrp button.more { color: var(--muted); }
+  .bar #snapGrp button + button, .bar #drawGrp button + button { border-left: 1px solid var(--border); }
+  .bar #snapGrp.on button, .bar #drawGrp.on button { color: var(--accent); }
+  .bar #snapGrp.on button + button, .bar #drawGrp.on button + button { border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+  /* the small menu that opens under the arrow */
+  #optMenu { position: fixed; z-index: 50; width: 250px; box-sizing: border-box; padding: 6px; border-radius: 14px;
+    background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: 0 16px 48px rgba(0,0,0,.25); animation: popin .16s ease-out; }
+  #optMenu[hidden] { display: none; }
+  #optMenu .oh { padding: 6px 10px 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  #optMenu button { display: grid; grid-template-columns: 18px 1fr; align-items: start; column-gap: 6px; width: 100%; box-sizing: border-box; padding: 8px 10px; border: 0; border-radius: 9px;
+    background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+  #optMenu button small { grid-column: 2; color: var(--muted); font-size: 11px; }
+  #optMenu button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #optMenu button .ck { color: var(--accent); font-weight: 700; }
   /* SNAP toggle button (lit up when on) */
   .bar button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
   /* FINISHED task: embedded images and video previews fade out (hover to peek at full strength) */
@@ -137,14 +184,14 @@
   #drawTools { display: inline-flex; gap: 8px; align-items: center; }
   #drawTools[hidden] { display: none; }
   /* DRAWING layer: an SVG under the cards. Pointer events only in draw mode, then it sits ON TOP of the cards. */
-  #ink { position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: calc(3000px + 2 * var(--pad)); height: calc(2000px + 2 * var(--pad)); overflow: visible; pointer-events: none; }   /* covers the margin around the board as well */
+  #ink { position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: var(--layer-w); height: var(--layer-h); overflow: visible; pointer-events: none; }   /* covers the margin around the board as well */
+  #ink.front { z-index: 8; }                                /* drawings above the notes and pictures */
   #ink.on { z-index: 20; pointer-events: auto; cursor: crosshair; touch-action: none; }
   #ink.on.erase { cursor: cell; }
   #ink path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
   /* ---------- ZOOM: the stage has the scaled size, the board is scaled inside it ---------- */
-  /* --pad = empty space around the board (same number as PAD in the script). It lets us scroll far enough to centre content that sits near an edge. */
-  :root { --pad: 900px; }
-  #stage { position: relative; width: calc(3000px + 2 * var(--pad)); height: calc(2000px + 2 * var(--pad)); }
+  /* The stage is the scrollable area: the board plus empty space all around it (PAD in the script). Its size is set by layoutStage() in the script. */
+  #stage { position: relative; width: 6000px; height: 5000px; }
   #board { transform-origin: 0 0; }
   /* ---------- Segmented groups (zoom) and the SPLIT save button ---------- */
   .rightbar { margin-left: auto; display: inline-flex; gap: 10px; align-items: center; }
@@ -186,7 +233,7 @@
   .card.free:hover, .card.free:focus-within { border: 1px dashed var(--border); }
   .card.free .grip { opacity: 0; border-bottom: 0; transition: opacity .15s; }
   .card.free:hover .grip, .card.free:focus-within .grip { opacity: 1; }
-  .card.free .body, .card.free textarea { font-size: var(--fs, 22px); line-height: 1.3; }
+  .card.free .body, .card.free textarea, .card.free .hlback { font-size: var(--fs, 22px); line-height: 1.3; }   /* .hlback = the highlight layer behind the editor: it MUST have the same size as the text on top of it */
   .grip button.tsz { font-size: 12px; font-weight: 600; }
   @media (hover: none) { .card.free .grip { opacity: 1; } }
   /* ---------- Version list: header, "you are here", paging ---------- */
@@ -268,6 +315,10 @@
   .grip button.copybtn { display: flex; align-items: center; padding: 3px 5px; border-radius: 7px; }
   .grip button.copybtn svg { width: 18px; height: 18px; }
   .grip button.copybtn:hover { color: var(--accent); }
+  .grip button.frmbtn.off { opacity: .45; }                /* picture border is off: the icon is dimmed */
+  .card.nob { border-color: transparent; box-shadow: none; background: transparent; }   /* picture without border */
+  .card.nob .grip { border-bottom-color: transparent; }
+  .card.nob input.link, .card.nob .linkonly, .card.nob .body.empty { display: none; }   /* no border: no link field, and no caption unless there is one */
   /* picture that could only be kept as a link */
   .linkonly { padding: 4px 10px; font-size: 11px; font-weight: 600; color: #b45309; background: color-mix(in srgb, #f59e0b 16%, transparent); }
   /* offer to turn on auto-save to a file */
@@ -290,9 +341,22 @@
   /* ---------- Selection ---------- */
   .card.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
   #ink path.sel { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 1px var(--accent)); }
+  /* ---------- PDF export: only #printRoot is printed, on one page sized to the content ---------- */
+  #printRoot { display: none; }
+  @media print {
+    html, body { margin: 0 !important; background: #fff !important; }
+    body > *:not(#printRoot) { display: none !important; }
+    #printRoot { display: block !important; }
+  }
   #marquee { position: absolute; display: none; z-index: 15; pointer-events: none; box-sizing: border-box;
     border: 1.5px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 3px; }
   /* ---------- Highlighted text ---------- */
+  /* While editing, the textarea shows the clean text; the highlight colours are painted by .hlback behind it (same font and padding) */
+  .edwrap { position: relative; }
+  .edwrap textarea { position: relative; z-index: 1; }
+  .edwrap textarea, .hlback { letter-spacing: inherit; word-break: normal; overflow-wrap: break-word; }   /* identical wrapping rules in both layers (before, the backdrop had a slightly different letter-spacing, so long text drifted) */
+  .hlback { position: absolute; inset: 0; padding: 8px 10px; box-sizing: border-box; font: inherit; white-space: pre-wrap;
+    overflow: hidden; color: transparent; pointer-events: none; }
   .hm { font-size: 0; }                                  /* the ==y: marks: present in the text, invisible on the page */
   mark { color: inherit; border-radius: 3px; padding: 0 2px; margin: 0 -2px; }
   mark.hl-y { background: rgba(255, 214, 10, .5); }
@@ -300,13 +364,22 @@
   mark.hl-b { background: rgba(10, 132, 255, .35); }
   mark.hl-p { background: rgba(255, 107, 157, .4); }
   mark.hl-o { background: rgba(255, 159, 10, .45); }
-  #hlBar { position: fixed; z-index: 70; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 999px;
+  #hlBar { position: fixed; z-index: 70; display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 999px;
     background: var(--card); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.25); animation: popin .12s ease-out; }
   #hlBar[hidden] { display: none; }
   #hlBar button { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--border); cursor: pointer;
     transition: transform .12s; font: inherit; font-size: 12px; line-height: 1; color: var(--muted); background: transparent; }
   #hlBar button:hover { transform: scale(1.18); }
   #hlBar button.x { box-shadow: none; border: 1px solid var(--border); }
+  #hlBar .fmtgrp, #hlBar .colgrp { display: flex; align-items: center; gap: 6px; }
+  #hlBar i.sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+  #hlBar .colgrp { padding-left: 10px; border-left: 1px solid var(--border); }
+  #hlBar .colgrp[hidden] { display: none; }
+  #hlBar button.fb { width: 28px; height: 28px; border: 0; box-shadow: none; border-radius: 8px; display: grid; place-items: center; color: var(--text); }
+  #hlBar button.fb:hover { transform: none; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  #hlBar button.fb svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .bd { font-weight: inherit; -webkit-text-stroke: .55px currentColor; }               /* bold = a thin outline: the letters keep their width, so the text never jumps when you start or stop editing */
+  .hlback .bd { -webkit-text-stroke-color: var(--text); }
 
   /* ---------- PREMIUM TOOLBAR LOOK (champagne-gold accent, quiet line icons, ink "Save version") ---------- */
   .bar { padding: 12px 18px; gap: 10px; background: color-mix(in srgb, var(--card) 55%, var(--bg)); }
@@ -384,14 +457,10 @@
     <!-- "Paste note" button (hidden for now: remove the comment marks to show it again; Ctrl+V still pastes a copied note)
     <button id="pasteNoteBtn" hidden title="Paste the note you copied">📋 Paste note</button>
     -->
-    <button id="snapBtn" title="Make cards click into place on the grid dots"></button>
-    <select id="gridSize" title="Grid size (the spacing of the dots and of the snapping)">
-      <option value="12">Grid: fine</option>
-      <option value="24">Grid: medium</option>
-      <option value="48">Grid: large</option>
-      <option value="72">Grid: x-large</option>
-    </select>
-    <button id="drawBtn" title="Draw on the canvas"></button>
+    <!-- Snap to grid: the main button switches snapping on/off, the small arrow opens the grid sizes -->
+    <span class="split soft" id="snapGrp"><button id="snapBtn" title="Make cards click into place on the grid dots"></button><button id="snapMore" class="more" title="Grid size (spacing of the dots and of the snapping)">▾</button></span>
+    <!-- Draw: the main button switches drawing on/off, the small arrow chooses if the drawing sits in front of or behind the notes -->
+    <span class="split soft" id="drawGrp"><button id="drawBtn" title="Draw on the canvas"></button><button id="drawMore" class="more" title="Drawing options: in front of or behind the notes">▾</button></span>
     <span id="drawTools" hidden>
       <input type="color" id="penColor" value="#ff0040" title="Pen color">
       <select id="penSize" title="Pen size">
@@ -409,6 +478,7 @@
     <span id="titleBox"><input id="canvasName" title="Name of this canvas (click to rename)" placeholder="Canvas name" maxlength="60" spellcheck="false"></span>
     <span class="rightbar">
       <small id="saveState"></small>
+      <button id="pdfBtn" title="Export the whole canvas as a PDF (one page)"></button>
       <button id="fileBtn" title="Keep a copy of everything in a file on your computer"></button>
       <span class="seggrp">
         <button id="zoomOut" title="Zoom out">−</button><button id="zoomLbl" title="Reset to 100% (Ctrl + scroll also zooms)">100%</button><button id="zoomIn" title="Zoom in">+</button>
@@ -447,6 +517,7 @@ const KEY = "canvas-todo-v1";
 
 /* Header icons: thin line icons (SVG) in one style. Colors follow the text color. */
 const HI = {
+  layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
   snap:  '<svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/></svg>',
   draw:  '<svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg>',
   folder:'<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
@@ -524,7 +595,26 @@ async function putImage(blob) {
 
 // save() is called everywhere after a change. It waits 0.3 s (so dragging doesn't write non-stop), then flush() writes.
 let saveTimer = null;
-function save() { setStatus("Saving…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); }
+/* ---------- Undo / redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) ----------
+   Every change to the cards or the drawing is a step. Changes that follow each other within a third of a second count as ONE step.
+   While you type in a note the browser's own undo works inside the text; this one works on the canvas (move, delete, resize, draw, border...). */
+const hist = { undo: [], redo: [], cur: null, timer: null };
+const histState = () => JSON.stringify({ items, strokes });
+function histInit() { hist.cur = histState(); hist.undo = []; hist.redo = []; }
+function histCommit() {                                  // close the current step: remember how the canvas looked BEFORE it
+  clearTimeout(hist.timer); if (hist.cur === null) return;
+  const now = histState(); if (now === hist.cur) return;
+  hist.undo.push(hist.cur); if (hist.undo.length > 60) hist.undo.shift();
+  hist.redo = []; hist.cur = now;
+}
+function histApply(str) { const o = JSON.parse(str); items = o.items; strokes = o.strokes; hist.cur = str; clearSel(); drawAll(); render(); save(); }
+let undoToast = null;                                   // the "Undo" popup that is on screen right now (set by toast())
+function undo() {
+  if (undoToast) { undoToast.fire(); return; }          // an "Undo" popup is showing: Ctrl+Z does what its button does, and the popup closes
+  histCommit(); const prev = hist.undo.pop(); if (!prev) return toast("Nothing to undo", "OK", 1500); hist.redo.push(hist.cur); histApply(prev);
+}
+function redo() { histCommit(); const next = hist.redo.pop(); if (!next) return toast("Nothing to redo", "OK", 1500); hist.undo.push(hist.cur); histApply(next); }
+function save() { setStatus("Saving…"); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 300); clearTimeout(hist.timer); hist.timer = setTimeout(histCommit, 350); layoutStage(); }
 
 /* =====================================================================
    SEVERAL TABS AT ONCE
@@ -633,11 +723,23 @@ async function migrateOld() {
 }
 
 // Starts the app: open the database, load everything, draw the canvas
-// Empty margin around the board (keep in sync with --pad in the CSS). Scroll positions include it, board positions do not.
-const PAD = 900;
-// Top-left corner of what you currently see, in board coordinates (never negative). Used to place new cards in view.
-const viewX = () => Math.max(-PAD, (scroller.scrollLeft - PAD) / zoom);
-const viewY = () => Math.max(-PAD, (scroller.scrollTop - PAD) / zoom);
+// Empty space around the board, in BOARD units (so it is the same at every zoom level). Things can be placed from -(PAD - MARGIN) upwards.
+const PAD = 1500, MINPOS = -(PAD - 300);
+// Top-left corner of what you currently see, in board coordinates. Used to place new cards in view.
+const viewX = () => Math.max(MINPOS, scroller.scrollLeft / zoom - PAD);
+const viewY = () => Math.max(MINPOS, scroller.scrollTop / zoom - PAD);
+// Sets the size of the scrollable area: the board (3000 x 2000) grows when you put things further right or lower, and there is always PAD of free space
+// after the farthest item, so nothing ends up glued to the edge. The dotted grid and the drawing layer cover all of it.
+function layoutStage() {
+  let w = 3000, h = 2000;
+  board.querySelectorAll(".card").forEach(c => { w = Math.max(w, c.offsetLeft + c.offsetWidth + 300); h = Math.max(h, c.offsetTop + c.offsetHeight + 300); });
+  strokes.forEach(st => (st.pts || []).forEach(([px, py]) => { w = Math.max(w, px + 300); h = Math.max(h, py + 300); }));
+  const LW = 2 * PAD + w, LH = 2 * PAD + h;               // size of the whole layer in board units
+  stage.style.width = LW * zoom + "px"; stage.style.height = LH * zoom + "px";
+  board.style.left = PAD * zoom + "px"; board.style.top = PAD * zoom + "px";
+  board.style.setProperty("--pad", PAD + "px"); board.style.setProperty("--layer-w", LW + "px"); board.style.setProperty("--layer-h", LH + "px");
+  ink.setAttribute("viewBox", (-PAD) + " " + (-PAD) + " " + LW + " " + LH);   // the layer starts PAD before the board, but drawings keep board coordinates
+}
 async function boot() {
   try { db = await openDb(); try { navigator.storage.persist(); } catch (e) {} }   // persist() asks the browser not to evict our data
   catch (e) { db = null; setStatus("⚠ Storage unavailable"); }
@@ -659,6 +761,7 @@ async function boot() {
   } else {                              // no database: fall back to the old localStorage so nothing looks lost
     try { items = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { items = []; }
   }
+  histInit();                           // the undo history starts from what was just loaded
   drawAll(); render();
   centerView();                         // open the canvas looking at its content
   await initMeta();                     // name + preview of this canvas for the home screen
@@ -680,15 +783,15 @@ function centerView() {
   strokes.forEach(st => (st.pts || []).forEach(([px, py]) => {   // every drawn point
     x1 = Math.min(x1, px); y1 = Math.min(y1, py); x2 = Math.max(x2, px); y2 = Math.max(y2, py);
   }));
-  if (x1 === Infinity) { setZoom(1); scroller.scrollLeft = PAD; scroller.scrollTop = PAD; return; }   // empty canvas: start at the board's top-left corner
+  if (x1 === Infinity) { setZoom(1); scroller.scrollLeft = PAD * zoom; scroller.scrollTop = PAD * zoom; return; }   // empty canvas: start at the board's top-left corner
   const view = scroller.getBoundingClientRect(), margin = 48;      // margin = free space kept around the content (screen px)
   const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
   const fit = Math.min((view.width - 2 * margin) / w, (view.height - 2 * margin) / h);   // the zoom at which everything just fits
   setZoom(Math.min(1, fit));                                       // zoom out to fit; setZoom keeps it between 25% and 250%
   // centre of the content on screen; if it still does not fit (more than the 25% minimum zoom can show) show its top-left corner instead
   const cw = w * zoom, ch = h * zoom;
-  scroller.scrollLeft = PAD + (cw + 2 * margin <= view.width  ? (x1 + x2) / 2 * zoom - view.width / 2  : x1 * zoom - margin);
-  scroller.scrollTop  = PAD + (ch + 2 * margin <= view.height ? (y1 + y2) / 2 * zoom - view.height / 2 : y1 * zoom - margin);
+  scroller.scrollLeft = PAD * zoom + (cw + 2 * margin <= view.width  ? (x1 + x2) / 2 * zoom - view.width / 2  : x1 * zoom - margin);
+  scroller.scrollTop  = PAD * zoom + (ch + 2 * margin <= view.height ? (y1 + y2) / 2 * zoom - view.height / 2 : y1 * zoom - margin);
 }
 
 // (save() now lives in the STORAGE section above)
@@ -751,6 +854,7 @@ function render(editId) {
     liveChips = [];
     items.forEach(item => board.appendChild(makeCard(item, item.id === editId)));
   } finally { rendering = false; }
+  layoutStage();
 }
 
 /* ---------- Checklists inside a note ----------
@@ -759,9 +863,9 @@ function render(editId) {
    the page draws the real boxes itself (CSS), so no special font is needed.
    (Older notes that used the characters ☐ / ☑ are still understood and are converted when the page opens.) */
 function parseCheck(ln) {
-  const m = ln.match(/^(\[[ xX]\]|[☐☑]) (.*)$/);
+  const m = ln.match(/^( *)(\[[ xX]\]|[☐☑]) (.*)$/);             // spaces at the start (indentation) are allowed
   if (!m) return null;
-  return { mark: m[1], on: m[1] === "☑" || /^\[[xX]\]$/.test(m[1]), rest: m[2] };
+  return { indent: m[1], mark: m[2], on: m[2] === "☑" || /^\[[xX]\]$/.test(m[2]), rest: m[3] };
 }
 function countChecks(text) {
   let total = 0, done = 0;
@@ -773,13 +877,13 @@ function renderBody(text) {
   return text.split("\n").map((ln, i) => {
     const c = parseCheck(ln);
     if (!c) return fmt(ln);
-    return '<span class="cb' + (c.on ? " on" : "") + '" data-line="' + i + '" title="Click to tick / untick">' + c.mark + '</span> <span class="cbtxt' + (c.on ? " done" : "") + '">' + fmt(c.rest) + '</span>';
+    return c.indent + '<span class="cb' + (c.on ? " on" : "") + '" data-line="' + i + '" title="Click to tick / untick">' + c.mark + '</span> <span class="cbtxt' + (c.on ? " done" : "") + '">' + fmt(c.rest) + '</span>';
   }).join("\n");
 }
 function toggleCheck(item, n) {                          // tick or untick line n
   const lines = item.text.split("\n"), c = parseCheck(lines[n] || "");
   if (!c) return;
-  lines[n] = (c.on ? "[ ] " : "[x] ") + c.rest;
+  lines[n] = c.indent + (c.on ? "[ ] " : "[x] ") + c.rest;
   item.text = lines.join("\n"); save(); render();
 }
 function migrateChecks(list) {                           // old ☐ / ☑ lines -> "[ ]" / "[x]"
@@ -829,7 +933,7 @@ async function pasteNote(x, y) {
     try { const b = dataUrlToBlob(clip.blobs[id]); urlCache[id] = URL.createObjectURL(b); keep.add(id); await dbPut("images", id, b); } catch (e) {}
   }
   const n = JSON.parse(JSON.stringify(clip.data));       // a real copy: new id, same pictures (they are shared, not duplicated)
-  n.id = uid(); n.x = snap(Math.max(-PAD, x)); n.y = snap(Math.max(-PAD, y));
+  n.id = uid(); n.x = snap(Math.max(MINPOS, x)); n.y = snap(Math.max(MINPOS, y));
   items.push(n); save(); render();
 }
 if (pasteNoteBtn) pasteNoteBtn.onclick = () => pasteNote(viewX() + 60 / zoom + Math.random() * 60, viewY() + 60 / zoom + Math.random() * 60);
@@ -837,7 +941,7 @@ updatePasteBtn();
 
 function makeCard(item, editing) {
   const el = document.createElement("div");
-  el.className = "card" + (item.done ? " done" : "") + (item.priority ? " prio-" + item.priority : "") + (item.type === "text" ? " free" : "") + (sel.items.has(item.id) ? " sel" : "");
+  el.className = "card" + (item.done ? " done" : "") + (item.priority ? " prio-" + item.priority : "") + (item.type === "text" ? " free" : "") + (item.noBorder ? " nob" : "") + (sel.items.has(item.id) ? " sel" : "");
   el.style.left = item.x + "px"; el.style.top = item.y + "px"; el.style.width = item.w + "px";
   if (item.type === "text") el.style.setProperty("--fs", (item.size || 22) + "px");
   el.dataset.id = item.id;                              // lets drag & drop find which card is under the pointer
@@ -889,6 +993,13 @@ function makeCard(item, editing) {
       acts.appendChild(b);
     });
   }
+  // Pictures: a small frame icon turns the border (and shadow) of the picture card on or off
+  if (item.type === "image") {
+    const bd = document.createElement("button"); bd.className = "copybtn frmbtn" + (item.noBorder ? " off" : ""); bd.innerHTML = ICON_FRAME;
+    bd.title = item.noBorder ? "Show the border" : "Hide the border";
+    bd.onclick = () => { item.noBorder = !item.noBorder; save(); render(); };
+    acts.appendChild(bd);
+  }
   const del = document.createElement("button");
   del.textContent = "×"; del.title = "Delete";
   del.onclick = () => removeItem(item);   // deleting can be undone for 5 seconds
@@ -929,7 +1040,7 @@ function makeCard(item, editing) {
   const body = document.createElement("div");
   body.className = "body" + (item.text ? "" : " empty");
   body.innerHTML = item.text ? renderBody(item.text) : ({ note: "Click to write…", text: "Type here…" }[item.type] || "Add a caption…");
-  const edit = (cx, cy) => {
+  const edit = (cx, cy, selA, selB) => {
     // 1) remember the current height: the editor starts with exactly the same size, so nothing jumps
     const h = body.offsetHeight;
     // 2) find where in the text you clicked, so the cursor starts there (end of the text if unknown)
@@ -943,12 +1054,23 @@ function makeCard(item, editing) {
         caret = Math.min(item.text.length, r.toString().length);   // characters before the click = position in the text
       }
     } else if (!item.text) caret = 0;
+    caret = hlToClean(item.text, caret);                          // the editor shows the text without the highlight marks
     const ta = document.createElement("textarea");
-    ta.value = item.text; ta.rows = 1; ta.style.height = h + "px";
+    // HIGHLIGHTS: the editor only shows clean text. The colours are kept as ranges and painted behind the text (see the highlight section).
+    const model = hlParse(item.text), back = document.createElement("div"); back.className = "hlback";
+    let prevClean = model.clean;
+    const sync = () => {                                           // call after the text changed: moves the ranges, saves, repaints
+      hlShift(model.ranges, prevClean, ta.value); prevClean = ta.value;
+      item.text = hlSerialize(prevClean, model.ranges); hlPaint(back, prevClean, model.ranges);
+    };
+    ta._hl = { model, back, refresh: () => { prevClean = ta.value; item.text = hlSerialize(prevClean, model.ranges); hlPaint(back, prevClean, model.ranges); } };
+    ta.value = model.clean; ta.rows = 1; ta.style.height = h + "px";
+    hlPaint(back, model.clean, model.ranges);
     ta.oninput = () => {
       // BULLETS: when the line you are typing starts with "* ", turn the star into a bullet "• "
       const pos = ta.selectionStart;
-      const ls = ta.value.lastIndexOf("\n", pos - 1) + 1;           // start of the current line
+      const ls0 = ta.value.lastIndexOf("\n", pos - 1) + 1;          // start of the current line
+      const ls = ls0 + ta.value.slice(ls0).match(/^ */)[0].length;   // ... after the indentation
       if (ta.value[ls] === "*" && ta.value[ls + 1] === " ") {
         ta.value = ta.value.slice(0, ls) + "•" + ta.value.slice(ls + 1);
         ta.setSelectionRange(pos, pos);                              // keep the cursor where it was
@@ -959,37 +1081,53 @@ function makeCard(item, editing) {
         ta.value = ta.value.slice(0, ls) + "[ ] " + ta.value.slice(ls + 3);
         ta.setSelectionRange(ls + 4, ls + 4);
       }
-      item.text = ta.value; ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px";
+      sync(); ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px";
     };
     // LISTS: Enter on a bullet "• ", a box "[ ] " or a number "3. " starts the next item; Enter on an empty item ends the list.
     // "beforeinput" is used instead of "keydown" because phone keyboards do not send a reliable Enter key.
     let shiftDown = false;
-    ta.onkeydown = e => { shiftDown = e.shiftKey; };
+    ta.onkeydown = e => {
+      shiftDown = e.shiftKey;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "b") { e.preventDefault(); boldApply(ta); }   // Ctrl+B
+      else if (e.key === "Tab") { e.preventDefault(); indentApply(ta, e.shiftKey ? -1 : 1); }                           // Tab / Shift+Tab
+    };
     ta.onkeyup = () => { shiftDown = false; };
     ta.addEventListener("beforeinput", e => {
       if ((e.inputType !== "insertLineBreak" && e.inputType !== "insertParagraph") || shiftDown) return;   // Shift+Enter = plain line break
       const pos = ta.selectionStart, ls = ta.value.lastIndexOf("\n", pos - 1) + 1;
-      const line = ta.value.slice(ls, pos);
+      const full = ta.value.slice(ls, pos), ind = full.match(/^ */)[0], line = full.slice(ind.length);   // the indentation is kept on the next line
       const num = line.match(/^(\d+)\. /);
       let pre = null;
       if (line.startsWith("• ")) pre = "• ";
+      else if (line.startsWith("- ")) pre = "- ";                  // dash list
       else if (/^(\[[ xX]\]|[☐☑]) /.test(line)) pre = "[ ] ";
       else if (num) pre = (+num[1] + 1) + ". ";                    // numbering: 1. 2. 3. ...
       if (!pre) return;                                            // normal line: normal Enter
       e.preventDefault();
-      if (/^(• |\[[ xX]\] |[☐☑] |\d+\. )$/.test(line)) ta.setRangeText("", ls, pos, "end");   // empty item -> remove it (ends the list)
-      else ta.setRangeText("\n" + pre, pos, ta.selectionEnd, "end");                                      // continue the list
+      if (/^(• |- |\[[ xX]\] |[☐☑] |\d+\. )$/.test(line)) ta.setRangeText("", ls, pos, "end");   // empty item -> remove it (ends the list)
+      else ta.setRangeText("\n" + ind + pre, pos, ta.selectionEnd, "end");                                // continue the list
       ta.dispatchEvent(new Event("input"));                        // save + resize
     });
-    ta.onblur = () => { item.text = ta.value; activeNote = null; hideHlBar(); save(); render(); };
-    body.replaceWith(ta); activeNote = item;  // pasting an image now goes into this note
+    ta.onblur = () => { item.text = hlSerialize(ta.value, model.ranges); activeNote = null; hideHlBar(); save(); render(); };
+    const wrap = document.createElement("div"); wrap.className = "edwrap"; wrap.append(back, ta);
+    body.replaceWith(wrap); activeNote = item;  // pasting an image now goes into this note
     ta.focus({ preventScroll: true });                           // do not let the browser scroll the canvas
-    ta.setSelectionRange(caret, caret);
-    bindHighlight(ta);                                           // the colour bar for highlighting selected text
+    if (selA !== undefined) { ta.setSelectionRange(hlToClean(item.text, selA), hlToClean(item.text, selB)); setTimeout(() => updateHlBar(ta), 0); }   // text was selected before editing: keep the selection and show the colour bar at once
+    else ta.setSelectionRange(caret, caret);
+    bindHighlight(ta);                                           // the formatting bar (bold, indent, checkbox, highlight colours)
+    setTimeout(() => updateHlBar(ta), 0);
     if (ta.scrollHeight > ta.clientHeight) ta.style.height = ta.scrollHeight + "px";   // grow only if the text really needs more room
   };
   body.onmousedown = e => { if (e.target.classList.contains("cb")) e.preventDefault(); };   // keeps the focus, so the click is never lost
+  // Selecting text with the mouse (or a double click on a word) straight away opens the editor WITH that selection, so the colour bar shows at once
+  body.onmouseup = () => {
+    const sl = getSelection();
+    if (!sl || sl.isCollapsed || sl.rangeCount === 0 || !body.contains(sl.anchorNode) || !body.contains(sl.focusNode)) return;
+    const r = sl.getRangeAt(0), pre = document.createRange(); pre.setStart(body, 0); pre.setEnd(r.startContainer, r.startOffset);
+    const a = pre.toString().length; edit(undefined, undefined, a, a + r.toString().length);
+  };
   body.onclick = e => {
+    if (activeNote === item) return;                                                            // already editing (the selection above opened the editor)
     if (e.target.classList.contains("cb")) return toggleCheck(item, +e.target.dataset.line);   // a click on a box ticks it
     if (e.target.tagName !== "A") edit(e.clientX, e.clientY);                                  // links stay clickable
   };  // links stay clickable
@@ -1053,6 +1191,7 @@ function setAddField(item, open) {
 
 // Icons (inline SVG, drawn with the text color)
 const ICON_IMAGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 8"/></svg>';
+const ICON_FRAME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6" rx="1.2"/></svg>';
 const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>';
 const ICON_GRIP = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
 
@@ -1235,11 +1374,49 @@ function openPop(chip, item) {
     const b = document.createElement("button"); b.textContent = label;
     b.onclick = () => setDeadline(item, fn()); grid.appendChild(b);
   });
-  // Custom date + time
-  add("div", "pl", "Custom date & time");
-  const inp = add("input"); inp.type = "datetime-local";
-  inp.value = toLocalInput(item.deadline || Date.now() + DAY);
-  inp.onchange = () => inp.value && setDeadline(item, new Date(inp.value).getTime());
+  // Custom date + time: a small calendar and a time box (drawn by us, so it matches the rest of the app)
+  add("div", "pl", "Pick a date & time");
+  const start = new Date(item.deadline || Date.now() + DAY);
+  let vy = start.getFullYear(), vm = start.getMonth();                         // the month being shown
+  let sy = vy, sm = vm, sd = start.getDate();                                  // the chosen day
+  const cal = add("div", "cal");
+  const head = document.createElement("div"); head.className = "calhead"; cal.appendChild(head);
+  const prevB = document.createElement("button"); prevB.type = "button"; prevB.textContent = "‹"; prevB.title = "Previous month";
+  const nextB = document.createElement("button"); nextB.type = "button"; nextB.textContent = "›"; nextB.title = "Next month";
+  const mLbl = document.createElement("span"); head.append(prevB, mLbl, nextB);
+  const wk = document.createElement("div"); wk.className = "calgrid wk"; cal.appendChild(wk);
+  ["M", "T", "W", "T", "F", "S", "S"].forEach(x => { const w = document.createElement("span"); w.textContent = x; wk.appendChild(w); });
+  const days = document.createElement("div"); days.className = "calgrid"; cal.appendChild(days);
+  const paintCal = () => {                                                     // draws the days of the month (called again on every change)
+    mLbl.textContent = new Date(vy, vm, 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+    days.innerHTML = "";
+    const lead = (new Date(vy, vm, 1).getDay() + 6) % 7;                       // empty cells before the 1st (the week starts on Monday)
+    for (let i = 0; i < lead; i++) days.appendChild(document.createElement("span"));
+    const n = new Date(vy, vm + 1, 0).getDate(), now = new Date();
+    for (let d = 1; d <= n; d++) {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = d;
+      if (d === now.getDate() && vm === now.getMonth() && vy === now.getFullYear()) b.classList.add("today");
+      if (d === sd && vm === sm && vy === sy) b.classList.add("pick");
+      b.onclick = () => { sy = vy; sm = vm; sd = d; paintCal(); };
+      days.appendChild(b);
+    }
+  };
+  prevB.onclick = () => { vm--; if (vm < 0) { vm = 11; vy--; } paintCal(); };
+  nextB.onclick = () => { vm++; if (vm > 11) { vm = 0; vy++; } paintCal(); };
+  paintCal();
+  // time: hours and minutes in two small boxes
+  const trow = add("div", "trow");
+  const tl = document.createElement("span"); tl.textContent = "Time"; tl.style.color = "var(--muted)"; trow.appendChild(tl);   // label on the left, the boxes on the right
+  const hh = document.createElement("input"), mm = document.createElement("input");
+  [hh, mm].forEach(x => { x.type = "number"; x.className = "tbox"; });
+  hh.min = 0; hh.max = 23; mm.min = 0; mm.max = 59; mm.step = 5;
+  hh.value = String(start.getHours()).padStart(2, "0"); mm.value = String(start.getMinutes()).padStart(2, "0");
+  const fix = (x, max) => { x.value = String(Math.min(max, Math.max(0, parseInt(x.value, 10) || 0))).padStart(2, "0"); };   // keeps the numbers valid
+  hh.onchange = () => fix(hh, 23); mm.onchange = () => fix(mm, 59);
+  const colon = document.createElement("b"); colon.textContent = ":";
+  const tbox = document.createElement("span"); tbox.className = "tgroup"; tbox.append(hh, colon, mm); trow.appendChild(tbox);
+  const ok = add("button", "setbtn", "Set deadline");
+  ok.onclick = () => { fix(hh, 23); fix(mm, 59); setDeadline(item, new Date(sy, sm, sd, +hh.value, +mm.value).getTime()); };
   if (item.deadline) { const rm = add("button", "rm2", "Remove deadline"); rm.onclick = () => setDeadline(item, null); }
 
   // Position under the chip (or above it if there is no room)
@@ -1258,8 +1435,9 @@ function makeVideos(item) {
   if (ACCOUNT && (ACCOUNT.locked || []).includes("youtube")) {   // Free plan: no preview, just a small hint
     if (YT_RE.test(item.text || "")) {
       YT_RE.lastIndex = 0;
-      const hint = document.createElement("button"); hint.className = "ytlock"; hint.textContent = "\u25B6 Video preview \u00b7 Pro";
-      hint.style.cssText = "background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:4px 10px;margin-top:6px;cursor:pointer;font:inherit;font-size:12px";
+      const hint = document.createElement("button"); hint.className = "ytlock"; hint.textContent = "\u25B6 Video preview \u00b7 Pro \u00b7 see how it looks";
+      // same side margins as a real preview (10px), so the banner never touches the card border
+      hint.style.cssText = "display:block;width:calc(100% - 20px);margin:2px 10px 10px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:9px 10px;cursor:pointer;font:inherit;font-size:12.5px;text-align:center";
       hint.onclick = e => { e.stopPropagation(); showUpgrade("youtube"); };
       wrap.appendChild(hint);
     }
@@ -1291,7 +1469,7 @@ function enableDrag(el, handle, item) {
     if (!sel.items.has(item.id)) clearSel();                           // dragging something that is not selected: forget the selection
     const sx = e.clientX, sy = e.clientY, ox = item.x, oy = item.y;   // where the drag started
     handle.onpointermove = m => {
-      item.x = snap(Math.max(-PAD, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(-PAD, oy + (m.clientY - sy) / zoom));   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
+      item.x = snap(Math.max(MINPOS, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(MINPOS, oy + (m.clientY - sy) / zoom)); layoutStage();   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
       el.style.left = item.x + "px"; el.style.top = item.y + "px";
     };
     handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; save(); };
@@ -1322,10 +1500,36 @@ scroller.addEventListener("scroll", closePop);
 setInterval(() => liveChips.forEach(paint => paint()), 30000);
 
 // Snap toggle button in the toolbar
-const snapBtn = document.getElementById("snapBtn");
+/* ---------- The small drop-down menu used by the arrows next to Draw and Snap to grid ----------
+   openOpt(anchor, title, rows): rows = [{ label, note, on, fn }]. "on" puts a check mark in front of the row that is active.
+   Click the arrow again, click elsewhere or press Esc to close it. */
+const optMenu = document.createElement("div"); optMenu.id = "optMenu"; optMenu.hidden = true; document.body.appendChild(optMenu);
+let optFor = null;
+function closeOpt() { optMenu.hidden = true; optFor = null; }
+function openOpt(anchor, title, rows) {
+  if (!optMenu.hidden && optFor === anchor) return closeOpt();      // the arrow again = close
+  closePop(); optFor = anchor; optMenu.innerHTML = "";
+  const h = document.createElement("div"); h.className = "oh"; h.textContent = title; optMenu.appendChild(h);
+  rows.forEach(r => {
+    const b = document.createElement("button"); b.type = "button";
+    b.innerHTML = '<span class="ck">' + (r.on ? "✓" : "") + '</span><span></span>' + (r.note ? "<small></small>" : "");
+    b.children[1].textContent = r.label; if (r.note) b.querySelector("small").textContent = r.note;
+    b.onclick = () => { closeOpt(); r.fn(); };
+    optMenu.appendChild(b);
+  });
+  optMenu.hidden = false;
+  const g = anchor.closest(".split") || anchor, rc = g.getBoundingClientRect();     // placed under the whole button
+  optMenu.style.top = (rc.bottom + 8) + "px";
+  optMenu.style.left = Math.max(8, Math.min(rc.left, innerWidth - optMenu.offsetWidth - 8)) + "px";
+}
+document.addEventListener("pointerdown", e => { if (!optMenu.hidden && !optMenu.contains(e.target) && !e.target.closest(".more")) closeOpt(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !optMenu.hidden) closeOpt(); });
+
+const snapBtn = document.getElementById("snapBtn"), snapMore = document.getElementById("snapMore");
 function updateSnapBtn() {
   snapBtn.innerHTML = withIcon("snap", "Snap to grid: " + (snapOn ? "On" : "Off"));
   snapBtn.classList.toggle("on", snapOn);
+  document.getElementById("snapGrp").classList.toggle("on", snapOn);
 }
 snapBtn.onclick = () => {
   if (lockedFeature("snap")) return;               // Pro feature
@@ -1342,22 +1546,22 @@ updateSnapBtn();
    GRID SIZE
    The select in the toolbar changes GRID (spacing of the dots AND of the snapping).
    ===================================================================== */
-const gridSel = document.getElementById("gridSize");
 function applyGrid() {
-  // dots are drawn by the board's background; shifting it by half a tile puts the dots exactly on multiples of GRID
-  board.style.backgroundSize = GRID + "px " + GRID + "px";
-  board.style.backgroundPosition = (-GRID / 2) + "px " + (-GRID / 2) + "px";
-  gridSel.value = String(GRID);
-  board.style.backgroundImage = snapOn ? "" : "none";   // the dots only show while snapping is on
-  gridSel.hidden = !snapOn;                              // so does the grid size menu
+  // the dots are drawn by the layer #board::before (see the CSS); it only needs the grid size and to be switched on
+  board.style.setProperty("--grid", GRID + "px");
+  board.classList.toggle("dots", snapOn);               // the dots only show while snapping is on
 }
 function alignAll() { items.forEach(i => { i.x = snap(i.x); i.y = snap(i.y); i.w = snapW(i.w); }); }
-gridSel.onchange = () => {
-  GRID = +gridSel.value;
-  try { localStorage.setItem("canvas-todo-grid", GRID); } catch (e) {}
-  applyGrid();
-  if (snapOn) { alignAll(); save(); render(); }   // snapping already on: re-align everything to the new grid
-};
+// Choosing a grid size (menu under the arrow): sets the spacing of the dots AND of the snapping, and switches snapping on
+const GRID_SIZES = [[12, "Fine"], [24, "Medium"], [48, "Large"], [72, "X-large"]];      // edit the names / sizes here
+function setGrid(v) {
+  if (lockedFeature("snap")) return;                    // Pro feature
+  GRID = v;
+  try { localStorage.setItem("canvas-todo-grid", GRID); localStorage.setItem("canvas-todo-snap", "1"); } catch (e) {}
+  snapOn = true; updateSnapBtn(); applyGrid();
+  alignAll(); save(); render();                         // everything re-aligns to the new grid
+}
+snapMore.onclick = () => openOpt(snapMore, "Grid size", GRID_SIZES.map(([v, name]) => ({ label: name, note: v + " px between the dots", on: GRID === v, fn: () => setGrid(v) })));
 applyGrid();
 
 /* =====================================================================
@@ -1375,7 +1579,6 @@ try { strokes = CANVAS_ID === "main" ? JSON.parse(localStorage.getItem(DRAW_KEY)
 const saveStrokes = () => save();   // the drawing is saved together with the cards (see STORAGE)
 
 const ink = document.createElementNS(SVGNS, "svg"); ink.id = "ink";
-ink.setAttribute("viewBox", (-PAD) + " " + (-PAD) + " " + (3000 + 2 * PAD) + " " + (2000 + 2 * PAD));   // the layer starts PAD before the board, but drawings keep board coordinates
 board.prepend(ink);                           // first child = the cards (added after it) appear on top
 
 // Builds a smooth SVG path from a list of points (curves through the midpoints)
@@ -1489,10 +1692,21 @@ ink.onpointerup = ink.onpointercancel = () => {
 // Toolbar controls
 const drawBtn = document.getElementById("drawBtn"), drawTools = document.getElementById("drawTools");
 const penColor = document.getElementById("penColor"), penSize = document.getElementById("penSize");
+// Layer: the whole drawing is either behind the notes/pictures (default) or in front of them. Remembered per canvas.
+const drawMore = document.getElementById("drawMore");
+let drawFront = false; try { drawFront = localStorage.getItem("canvas-todo-front-" + CANVAS_ID) === "1"; } catch (e) {}
+function updateFrontUi() { ink.classList.toggle("front", drawFront); }      // the layer is just a CSS class on the drawing
+function setFront(v) { drawFront = v; try { localStorage.setItem("canvas-todo-front-" + CANVAS_ID, v ? "1" : "0"); } catch (e) {} updateFrontUi(); }
+drawMore.onclick = () => openOpt(drawMore, "Drawing layer", [
+  { label: "Behind the notes", note: "Notes and pictures stay readable on top", on: !drawFront, fn: () => setFront(false) },
+  { label: "In front of the notes", note: "The drawing covers notes and pictures", on: drawFront, fn: () => setFront(true) }
+]);
+updateFrontUi();
 const penTool = document.getElementById("penTool"), undoBtn = document.getElementById("undoBtn"), clearBtn = document.getElementById("clearBtn");
 function updateDrawUi() {
   drawBtn.innerHTML = withIcon("draw", "Draw: " + (drawOn ? "On" : "Off"));
   drawBtn.classList.toggle("on", drawOn);
+  document.getElementById("drawGrp").classList.toggle("on", drawOn);
   drawTools.hidden = !drawOn;                           // pen tools only show in draw mode
   ink.classList.toggle("on", drawOn); ink.classList.toggle("erase", erasing);
 }
@@ -1523,11 +1737,11 @@ function setZoom(z, cx, cy) {
   z = Math.min(2.5, Math.max(0.25, z));
   const sr = scroller.getBoundingClientRect();
   if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
-  const bx = (scroller.scrollLeft - PAD + cx - sr.left) / zoom, by = (scroller.scrollTop - PAD + cy - sr.top) / zoom;   // canvas point under the cursor
+  const bx = (scroller.scrollLeft - PAD * zoom + cx - sr.left) / zoom, by = (scroller.scrollTop - PAD * zoom + cy - sr.top) / zoom;   // canvas point under the cursor
   zoom = z;
   board.style.transform = "scale(" + zoom + ")";
-  stage.style.width = 3000 * zoom + 2 * PAD + "px"; stage.style.height = 2000 * zoom + 2 * PAD + "px";
-  scroller.scrollLeft = PAD + bx * zoom - (cx - sr.left); scroller.scrollTop = PAD + by * zoom - (cy - sr.top);
+  layoutStage();                                          // new size of the scrollable area for this zoom
+  scroller.scrollLeft = PAD * zoom + bx * zoom - (cx - sr.left); scroller.scrollTop = PAD * zoom + by * zoom - (cy - sr.top);
   zoomLbl.textContent = Math.round(zoom * 100) + "%";
   try { localStorage.setItem("canvas-todo-zoom", zoom); } catch (e) {}
   closePop(); closeList();
@@ -1565,8 +1779,11 @@ function toast(msg, actionLabel, ms, onAction, onExpire) {
   const b = document.createElement("button"); b.textContent = actionLabel;
   const bar = document.createElement("i"); bar.style.animationDuration = ms + "ms";   // the shrinking line = time left
   t.append(m, b, bar); toasts.appendChild(t);
-  const timer = setTimeout(() => { t.remove(); if (onExpire) onExpire(); }, ms);
-  b.onclick = () => { clearTimeout(timer); t.remove(); onAction(); };
+  const me = { fire: () => b.click() };
+  if (actionLabel === "Undo") undoToast = me;           // remember it, so Ctrl+Z can use it (see undo())
+  const gone = () => { if (undoToast === me) undoToast = null; };
+  const timer = setTimeout(() => { t.remove(); gone(); if (onExpire) onExpire(); }, ms);
+  b.onclick = () => { clearTimeout(timer); t.remove(); gone(); onAction(); };
 }
 function removeItem(item) {
   const index = items.indexOf(item);
@@ -1710,14 +1927,22 @@ function showUpgrade(reason) {
             : reason === "items" ? "The Free plan holds up to " + L.items + " items on a canvas."
             : reason === "deadlines" ? "Deadlines with a live countdown are a Pro feature."
             : reason === "youtube" ? "YouTube previews are a Pro feature."
+            : reason === "pdf" ? "PDF export is a Pro feature."
             : reason === "drawings" ? "The Free plan allows " + L.drawings + " drawings on a canvas."
             : reason === "drawing" ? "Drawing and shapes are a Pro feature."
             : "Get more room with Pro.";
+  // An example of the locked feature, so people can see what they would get
+  const example = reason === "youtube"
+    ? "<div style='margin:0 0 16px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)'>"
+      + "<div style='padding:8px 10px;font-size:14px'>Promo video<br><span style='color:var(--link);text-decoration:underline'>https://youtu.be/aBcDeFgHiJk</span></div>"
+      + "<div class='yt' style='margin:0 10px 10px;pointer-events:none'><div style='position:absolute;inset:0;background:linear-gradient(120deg,#ff0a54,#3a6df0 55%,#f5c86b)'></div><span class='play'></span></div>"
+      + "<div style='padding:0 10px 8px;font-size:11.5px;color:var(--muted)'>Example: a YouTube link in a note becomes a clickable preview.</div></div>"
+    : "";
   const ov = document.createElement("div");
   ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px";
   ov.innerHTML = "<div style='background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;max-width:420px;width:100%;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.4);font-family:inherit'>"
-    + "<h2 style='margin:0 0 6px;font-size:22px'>Upgrade to Pro</h2><p style='margin:0 0 18px;color:var(--muted)'>" + why + " Pro unlocks everything: unlimited canvases, items and drawings, deadlines, YouTube previews and your full version history.</p>"
-    + "<div style='display:grid;gap:10px'><button data-p='monthly' class='upb'>" + (P.monthly || "Monthly") + "</button><button data-p='yearly' class='upb'>" + (P.yearly || "Yearly") + "</button></div>"
+    + "<h2 style='margin:0 0 6px;font-size:22px'>Upgrade to Pro</h2><p style='margin:0 0 16px;color:var(--muted)'>" + why + " Pro unlocks everything: unlimited canvases, items and drawings, deadlines, YouTube previews, PDF export and your full version history.</p>"
+    + example + "<div style='display:grid;gap:10px'><button data-p='monthly' class='upb'>" + (P.monthly || "Monthly") + "</button><button data-p='yearly' class='upb'>" + (P.yearly || "Yearly") + "</button></div>"
     + "<div class='uperr' style='color:#ef4444;font-size:13px;min-height:18px;margin-top:10px'></div>"
     + "<button class='upx' style='background:none;border:0;color:var(--muted);cursor:pointer;margin-top:4px;font:inherit'>Not now</button></div>";
   ov.querySelectorAll(".upb").forEach(b => {
@@ -1933,6 +2158,7 @@ const sel = { items: new Set(), strokes: new Set() };    // ids of the selected 
 function applySel() {                                    // show the selection: outline on cards, glow on drawings
   board.querySelectorAll(".card").forEach(c => c.classList.toggle("sel", sel.items.has(c.dataset.id)));
   drawAll();
+  updatePdfBtn();                                        // the PDF button says when it will export only the selection
 }
 function clearSel() { if (!sel.items.size && !sel.strokes.size) return; sel.items.clear(); sel.strokes.clear(); applySel(); }
 function toggleSelItem(id) { sel.items.has(id) ? sel.items.delete(id) : sel.items.add(id); applySel(); }
@@ -2016,7 +2242,9 @@ function removeSelected() {                              // Delete key: removes 
 document.addEventListener("keydown", e => {
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;   // typing: leave the keys alone
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }     // undo / redo
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); redo(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
     e.preventDefault(); items.forEach(i => sel.items.add(i.id)); strokes.forEach(st => sel.strokes.add(st.id)); applySel();
   } else if (e.key === "Delete" || e.key === "Backspace") {
     if (sel.items.size || sel.strokes.size) { e.preventDefault(); removeSelected(); }
@@ -2031,75 +2259,247 @@ document.addEventListener("keydown", e => {
    ===================================================================== */
 const HL_COLORS = { y: "#ffd60a", g: "#34c759", b: "#0a84ff", p: "#ff6b9d", o: "#ff9f0a" };
 const HL_SRC = "==([ygbpo]):(.+?)==";                   // used with new RegExp(HL_SRC, "g")
-// A line of text as HTML: highlights + links (the marks stay in the page but are invisible, so the cursor positions still match)
+// A line of text as HTML: bold, highlights and links (the marks stay in the page but are invisible, so the cursor positions still match)
+// Stored format:  **bold**   ==y:highlighted==   and both together:  **==y:bold and highlighted==**
+function hlHtml(c, text) { return '<span class="hm">==' + c + ':</span><mark class="hl-' + c + '">' + linkify(text) + '</mark><span class="hm">==</span>'; }
 function fmt(line) {
   let out = "", last = 0, m;
-  const re = new RegExp(HL_SRC, "g");
+  const re = /\*\*(.+?)\*\*|==([ygbpo]):(.+?)==/g;
   while ((m = re.exec(line))) {
     out += linkify(line.slice(last, m.index));
-    out += '<span class="hm">==' + m[1] + ':</span><mark class="hl-' + m[1] + '">' + linkify(m[2]) + '</mark><span class="hm">==</span>';
+    if (m[1] !== undefined) {                              // bold (may contain a highlight)
+      let inner = "", l2 = 0, h; const r2 = new RegExp(HL_SRC, "g");
+      while ((h = r2.exec(m[1]))) { inner += linkify(m[1].slice(l2, h.index)) + hlHtml(h[1], h[2]); l2 = h.index + h[0].length; }
+      out += '<b class="bd"><span class="hm">**</span>' + inner + linkify(m[1].slice(l2)) + '<span class="hm">**</span></b>';
+    } else out += hlHtml(m[2], m[3]);
     last = m.index + m[0].length;
   }
   return out + linkify(line.slice(last));
 }
-// Highlight the selected text of textarea ta with colour letter c ("" = remove the highlight)
-function hlApply(ta, c) {
-  let a = ta.selectionStart, b = ta.selectionEnd, text = ta.value;
-  if (a === b) return;
-  // 1) take out the marks of every highlight that touches the selection (so colours can be changed or removed)
-  const re = new RegExp(HL_SRC, "g"), cuts = [];
-  let m, out = "", last = 0;
+// ----- Highlight / bold model -----
+// Stored text keeps the marks. The editor works on CLEAN text plus a list of ranges { s: start, e: end, c: colour letter or "B" for bold }.
+function hlParse(text) {                                  // "a **b** c"  ->  { clean: "a b c", ranges: [{ s: 2, e: 3, c: "B" }], s2c }  (s2c: stored position -> clean position)
+  const ranges = []; let clean = ""; const s2c = new Array(text.length + 1).fill(0);
+  const plain = (a, b) => { for (let i = a; i < b; i++) { s2c[i] = clean.length; clean += text[i]; } };   // normal characters
+  const hide = (a, b) => { for (let i = a; i < b; i++) s2c[i] = clean.length; };                           // mark characters: not shown in the editor
+  const hlScan = (a, b) => {                              // text + highlights between two stored positions
+    const re = new RegExp(HL_SRC, "g"), seg = text.slice(a, b); let m, last = 0;
+    while ((m = re.exec(seg))) {
+      const ms = a + m.index, me = ms + m[0].length;
+      plain(a + last, ms); hide(ms, ms + 4);
+      const st = clean.length; plain(ms + 4, me - 2); ranges.push({ s: st, e: clean.length, c: m[1] }); hide(me - 2, me);
+      last = m.index + m[0].length;
+    }
+    plain(a + last, b);
+  };
+  const re = /\*\*(.+?)\*\*|==([ygbpo]):(.+?)==/g; let m, last = 0;
   while ((m = re.exec(text))) {
     const ms = m.index, me = ms + m[0].length;
-    if (ms < b && me > a) { out += text.slice(last, ms) + m[2]; last = me; cuts.push([ms, ms + 4], [me - 2, me]); }
+    plain(last, ms);
+    if (m[1] !== undefined) { hide(ms, ms + 2); const st = clean.length; hlScan(ms + 2, me - 2); ranges.push({ s: st, e: clean.length, c: "B" }); hide(me - 2, me); }
+    else { hide(ms, ms + 4); const st = clean.length; plain(ms + 4, me - 2); ranges.push({ s: st, e: clean.length, c: m[2] }); hide(me - 2, me); }
+    last = me;
   }
-  out += text.slice(last); text = out;
-  const map = p => p - cuts.reduce((n, [s0, e0]) => n + (p >= e0 ? e0 - s0 : p > s0 ? p - s0 : 0), 0);   // where a position moved to
-  a = map(a); b = map(b);
-  let added = 0;
-  // 2) wrap the selection, line by line (never the "• ", "[ ] " or "3. " at the start of a line)
-  if (c) {
-    let pos = 0;
-    text = text.split("\n").map(ln => {
-      const ls = pos, le = pos + ln.length; pos = le + 1;
-      let s0 = Math.max(a, ls), e0 = Math.min(b, le);
-      if (e0 <= s0) return ln;
-      s0 = Math.max(s0, ls + (ln.match(/^(• |\[[ xX]\] |[☐☑] |\d+\. )/) || [""])[0].length);
-      while (s0 < e0 && text[s0] === " ") s0++;                       // spaces stay outside the highlight
-      while (e0 > s0 && text[e0 - 1] === " ") e0--;
-      if (e0 <= s0) return ln;
-      added += 6;
-      return ln.slice(0, s0 - ls) + "==" + c + ":" + ln.slice(s0 - ls, e0 - ls) + "==" + ln.slice(e0 - ls);
-    }).join("\n");
-  }
-  ta.value = text;
-  ta.setSelectionRange(b + added, b + added);            // the cursor goes after the highlighted words
-  ta.dispatchEvent(new Event("input"));                  // save + resize
+  plain(last, text.length); s2c[text.length] = clean.length;
+  return { clean, ranges, s2c };
 }
-// The colour bar
+function hlLayers(n, ranges) {                            // per character: is it bold? which highlight colour?
+  const bold = new Array(n).fill(false), hl = new Array(n).fill("");
+  ranges.forEach(r => { for (let i = Math.max(0, r.s); i < Math.min(n, r.e); i++) { if (r.c === "B") bold[i] = true; else hl[i] = r.c; } });
+  return { bold, hl };
+}
+function hlSerialize(clean, ranges) {                     // clean text + ranges -> stored text with marks (marks never cross a line break)
+  const n = clean.length, { bold, hl } = hlLayers(n, ranges);
+  let out = "", i = 0;
+  while (i < n) {
+    if (clean[i] === "\n" || (!bold[i] && !hl[i])) { out += clean[i]; i++; continue; }
+    let e = i;                                            // the run of characters that share "bold or not" ...
+    while (e < n && clean[e] !== "\n" && bold[e] === bold[i] && (bold[i] || hl[e])) e++;
+    let run = "", k = i;                                  // ... inside it, one highlight mark per colour
+    while (k < e) { let m = k + 1; while (m < e && hl[m] === hl[k]) m++; const seg = clean.slice(k, m); run += hl[k] ? "==" + hl[k] + ":" + seg + "==" : seg; k = m; }
+    out += bold[i] ? "**" + run + "**" : run; i = e;
+  }
+  return out;
+}
+function hlToClean(text, pos) { return hlParse(text).s2c[Math.max(0, Math.min(text.length, pos))]; }   // a position in the stored text -> the same place in the clean text
+function hlShift(ranges, oldT, newT) {                    // the text changed: move / grow / shrink the ranges so formats stay on the same words
+  let p = 0; const max = Math.min(oldT.length, newT.length);
+  while (p < max && oldT[p] === newT[p]) p++;                              // same start
+  let q = 0; while (q < max - p && oldT[oldT.length - 1 - q] === newT[newT.length - 1 - q]) q++;   // same end
+  const removed = oldT.length - p - q, added = newT.length - p - q, d = added - removed;
+  const mv = (pos, isEnd) => pos <= p ? (!isEnd && pos === p && removed === 0 && added > 0 ? pos + added : pos) : pos >= oldT.length - q ? pos + d : (isEnd ? p + added : p);
+  for (let k = ranges.length - 1; k >= 0; k--) { const r = ranges[k]; r.s = mv(r.s, false); r.e = mv(r.e, true); if (r.e <= r.s) ranges.splice(k, 1); }
+}
+function hlPaint(back, clean, ranges) {                   // paints colours (and a bold outline) behind the text; the backdrop text itself is transparent
+  const n = clean.length, { bold, hl } = hlLayers(n, ranges);
+  back.textContent = ""; let i = 0;
+  while (i < n) {
+    let j = i + 1; while (j < n && bold[j] === bold[i] && hl[j] === hl[i]) j++;
+    const t = document.createTextNode(clean.slice(i, j));
+    if (!bold[i] && !hl[i]) back.appendChild(t);
+    else { const el = document.createElement(hl[i] ? "mark" : "span"); if (hl[i]) el.className = "hl-" + hl[i]; if (bold[i]) el.classList.add("bd"); el.appendChild(t); back.appendChild(el); }
+    i = j;
+  }
+  back.appendChild(document.createTextNode("\n"));
+}
+// Apply several text changes at once (edits = [{ pos, del, ins }] sorted by position); the formats and the selection follow.
+function hlEdit(ta, edits) {
+  const h = ta._hl, old = ta.value; let out = "", at = 0;
+  edits.forEach(e => { out += old.slice(at, e.pos) + e.ins; at = e.pos + e.del; }); out += old.slice(at);
+  const map = (p, isEnd) => {
+    let sh = 0;
+    for (const e of edits) {
+      const end = e.pos + e.del;
+      if (p < e.pos) break;
+      if (p === e.pos && e.del === 0 && isEnd) break;                      // an end right before an insertion stays where it is
+      if (p >= end) sh += e.ins.length - e.del; else return e.pos + sh + e.ins.length;   // inside a removed part: collapse
+    }
+    return p + sh;
+  };
+  const a = map(ta.selectionStart, false), b = map(ta.selectionEnd, true);
+  h.model.ranges.forEach(r => { r.s = map(r.s, false); r.e = map(r.e, true); });
+  h.model.ranges = h.model.ranges.filter(r => r.e > r.s);
+  ta.value = out; h.refresh(); ta.setSelectionRange(a, b);
+  ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; setTimeout(() => updateHlBar(ta), 0);
+}
+// The lines touched by the selection (start positions)
+function hlLines(ta) {
+  const t = ta.value, a = ta.selectionStart, b = ta.selectionEnd, starts = [];
+  let ls = t.lastIndexOf("\n", a - 1) + 1;
+  for (;;) { starts.push(ls); const nl = t.indexOf("\n", ls); if (nl === -1 || nl + 1 >= b) break; ls = nl + 1; }
+  return starts;
+}
+function indentApply(ta, dir) {                           // Tab / Shift+Tab: 4 spaces more or less at the start of the lines
+  const t = ta.value, edits = [];
+  hlLines(ta).forEach(ls => {
+    if (dir > 0) edits.push({ pos: ls, del: 0, ins: "    " });
+    else { const n = (t.slice(ls).match(/^ {1,4}/) || [""])[0].length; if (n) edits.push({ pos: ls, del: n, ins: "" }); }
+  });
+  if (edits.length) hlEdit(ta, edits);
+}
+// LIST BUTTONS. Marks that can sit at the start of a line: "• " bullet, "- " dash, "1. " number, "[ ] " checkbox.
+const LIST_MARK = /^(• |- |\d+\. |\[[ xX]\] |[☐☑] )/;
+function listApply(ta, kind) {
+  const t = ta.value, starts = hlLines(ta), edits = [];
+  const info = starts.map(ls => {
+    const at = ls + t.slice(ls).match(/^ */)[0].length;                       // after the indentation
+    const m = t.slice(at).match(LIST_MARK);
+    return { at, mark: m ? m[0] : "" };
+  });
+  if (kind === "bullet") {
+    // click 1 = "• ", click 2 (all lines already "• ") = "- ", click 3 (all "- ") = remove
+    const next = info.every(l => l.mark === "• ") ? "- " : info.every(l => l.mark === "- ") ? "" : "• ";
+    info.forEach(l => edits.push({ pos: l.at, del: l.mark.length, ins: next }));
+  } else {
+    if (info.every(l => /^\d+\. $/.test(l.mark))) info.forEach(l => edits.push({ pos: l.at, del: l.mark.length, ins: "" }));   // already numbered: remove
+    else {
+      // number the lines 1. 2. 3. ... (when the line above is already numbered, continue after it)
+      const before = t.slice(0, starts[0]).split("\n").slice(-2, -1)[0] || "";
+      const prev = before.match(/^ *(\d+)\. /);
+      let n = prev ? +prev[1] + 1 : 1;
+      info.forEach(l => { edits.push({ pos: l.at, del: l.mark.length, ins: (n++) + ". " }); });
+    }
+  }
+  if (edits.length) hlEdit(ta, edits);
+}
+function checkApply(ta) {                                 // a small checkbox at the start of the lines (again = remove it), like Word
+  const t = ta.value, lines = hlLines(ta).map(ls => { const ind = t.slice(ls).match(/^ */)[0].length, at = ls + ind, rest = t.slice(at, t.indexOf("\n", at) === -1 ? t.length : t.indexOf("\n", at)); return { at, rest }; });
+  const isBox = r => /^\[[ xX]\] /.test(r), allBoxes = lines.every(l => isBox(l.rest));
+  const edits = [];
+  lines.forEach(l => {
+    if (allBoxes) edits.push({ pos: l.at, del: 4, ins: "" });
+    else if (!isBox(l.rest)) edits.push({ pos: l.at, del: /^(• |- )/.test(l.rest) ? 2 : /^\d+\. /.test(l.rest) ? l.rest.match(/^\d+\. /)[0].length : 0, ins: "[ ] " });
+  });
+  if (edits.length) hlEdit(ta, edits);
+}
+// The pieces of the selection that can be formatted: line by line, never the "• ", "[ ] " or "3. " at the start, nor spaces at the ends
+function hlPieces(ta) {
+  const a = ta.selectionStart, b = ta.selectionEnd, text = ta.value, out = []; let pos = 0;
+  text.split("\n").forEach(ln => {
+    const ls = pos, le = pos + ln.length; pos = le + 1;
+    let s0 = Math.max(a, ls), e0 = Math.min(b, le);
+    if (e0 <= s0) return;
+    s0 = Math.max(s0, ls + (ln.match(/^ *(• |- |\[[ xX]\] |[☐☑] |\d+\. )?/) || [""])[0].length);
+    while (s0 < e0 && text[s0] === " ") s0++;
+    while (e0 > s0 && text[e0 - 1] === " ") e0--;
+    if (e0 > s0) out.push([s0, e0]);
+  });
+  return out;
+}
+function boldApply(ta) {                                  // Ctrl+B / the B button: bold on, or off when everything selected is already bold
+  const h = ta._hl; if (!h || ta.selectionStart === ta.selectionEnd) return;
+  const pieces = hlPieces(ta), { bold } = hlLayers(ta.value.length, h.model.ranges);
+  const allBold = pieces.length > 0 && pieces.every(([s0, e0]) => { for (let i = s0; i < e0; i++) if (!bold[i]) return false; return true; });
+  const out = [];
+  h.model.ranges.forEach(r => {                           // cut the selection out of the bold ranges
+    if (r.c !== "B") return out.push(r);
+    let parts = [[r.s, r.e]];
+    pieces.forEach(([s0, e0]) => { parts = parts.flatMap(([x, y]) => (y <= s0 || x >= e0) ? [[x, y]] : [[x, Math.min(y, s0)], [Math.max(x, e0), y]].filter(([u, v]) => v > u)); });
+    parts.forEach(([x, y]) => out.push({ s: x, e: y, c: "B" }));
+  });
+  if (!allBold) pieces.forEach(([s0, e0]) => out.push({ s: s0, e: e0, c: "B" }));
+  h.model.ranges = out; h.refresh(); setTimeout(() => updateHlBar(ta), 0);
+}
+// Highlight the selected text of textarea ta with colour letter c ("" = remove the highlight)
+function hlApply(ta, c) {
+  const h = ta._hl, a = ta.selectionStart, b = ta.selectionEnd;
+  if (!h || a === b) return;
+  const out = [];                                         // 1) cut the selection out of the existing highlights (bold stays untouched)
+  h.model.ranges.forEach(r => {
+    if (r.c === "B" || r.e <= a || r.s >= b) out.push(r);
+    else { if (r.s < a) out.push({ s: r.s, e: a, c: r.c }); if (r.e > b) out.push({ s: b, e: r.e, c: r.c }); }
+  });
+  if (c) hlPieces(ta).forEach(([s0, e0]) => out.push({ s: s0, e: e0, c }));     // 2) colour the selection
+  h.model.ranges = out; h.refresh();                      // save + repaint
+  ta.setSelectionRange(a, b);                             // the selection STAYS (like Word), so you can go on: bold, list, indent... all on the same text
+  setTimeout(() => updateHlBar(ta), 0);
+}
+// The formatting bar (above the note while you edit): bold, less / more indent, checkbox, and - while text is selected - the highlight colours
 const hlBar = document.createElement("div"); hlBar.id = "hlBar"; hlBar.hidden = true; document.body.appendChild(hlBar);
 let hlTa = null;                                         // the textarea being edited
-Object.entries(HL_COLORS).forEach(([k, col]) => {
-  const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = col; b.dataset.c = k; b.title = "Highlight"; hlBar.appendChild(b);
+const FMT_ICONS = {                                      // the ORDER here is the order of the buttons in the bar: text style | lists | indentation
+  bold: "<b style='font-size:14px'>B</b>",
+  bullet: '<svg viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.2" fill="currentColor"/><circle cx="5" cy="17" r="1.2" fill="currentColor"/><path d="M10 7h10M10 17h10"/></svg>',
+  number: '<svg viewBox="0 0 24 24"><path d="M10 7h10M10 17h10"/><path d="M4 5.5 5.5 5v4.5M4 15.2c0-1 2.5-1 2.5.2S4 17 4 18.5h2.8" stroke-width="1.3"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+  outdent: '<svg viewBox="0 0 24 24"><path d="M4 6h16M11 12h9M4 18h16M7 9l-3 3 3 3"/></svg>',
+  indent: '<svg viewBox="0 0 24 24"><path d="M4 6h16M11 12h9M4 18h16M4 9l3 3-3 3"/></svg>'
+};
+const FMT_TITLES = { bullet: "Bullet list • (click again: dash list -, again: off)", number: "Numbered list 1. 2. 3.", bold: "Bold (Ctrl+B)", outdent: "Less indent (Shift+Tab)", indent: "More indent (Tab)", check: "Checkbox on / off" };
+const fmtGrp = document.createElement("span"); fmtGrp.className = "fmtgrp"; hlBar.appendChild(fmtGrp);
+Object.keys(FMT_ICONS).forEach(k => {
+  if (k === "bullet" || k === "outdent") { const sp = document.createElement("i"); sp.className = "sep"; fmtGrp.appendChild(sp); }   // thin dividers between the groups
+  const b = document.createElement("button"); b.type = "button"; b.className = "fb"; b.dataset.f = k; b.title = FMT_TITLES[k]; b.innerHTML = FMT_ICONS[k]; fmtGrp.appendChild(b);
 });
-{ const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "✕"; x.dataset.c = ""; x.title = "Remove the highlight"; hlBar.appendChild(x); }
+const colGrp = document.createElement("span"); colGrp.className = "colgrp"; hlBar.appendChild(colGrp);     // shown only while text is selected
+Object.entries(HL_COLORS).forEach(([k, col]) => {
+  const b = document.createElement("button"); b.type = "button"; b.className = "sw"; b.style.background = col; b.dataset.c = k; b.title = "Highlight"; colGrp.appendChild(b);
+});
+{ const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "✕"; x.dataset.c = ""; x.title = "Remove the highlight"; colGrp.appendChild(x); }
 hlBar.addEventListener("mousedown", e => e.preventDefault());       // pressing the bar must not take the focus (and the selection) away from the text
 hlBar.addEventListener("pointerdown", e => {
   e.preventDefault();
   const b = e.target.closest("button");
-  if (b && hlTa) hlApply(hlTa, b.dataset.c);
+  if (!b || !hlTa) return;
+  if (b.dataset.f === "bold") boldApply(hlTa);
+  else if (b.dataset.f === "indent") indentApply(hlTa, 1);
+  else if (b.dataset.f === "outdent") indentApply(hlTa, -1);
+  else if (b.dataset.f === "check") checkApply(hlTa);
+  else if (b.dataset.f === "bullet") listApply(hlTa, "bullet");
+  else if (b.dataset.f === "number") listApply(hlTa, "number");
+  else if (b.dataset.c !== undefined) hlApply(hlTa, b.dataset.c);
 });
 function hideHlBar() { hlBar.hidden = true; hlTa = null; }
-function updateHlBar(ta) {                               // show the bar above the note while some text is selected
-  if (!ta || !ta.isConnected || document.activeElement !== ta || ta.selectionStart === ta.selectionEnd) return hideHlBar();
-  hlTa = ta;
+function updateHlBar(ta) {                               // show the bar above the note while it is being edited (colours only while text is selected)
+  if (!ta || !ta.isConnected || document.activeElement !== ta) return hideHlBar();
+  hlTa = ta; colGrp.hidden = ta.selectionStart === ta.selectionEnd;
   const r = ta.closest(".card").getBoundingClientRect();
   hlBar.hidden = false;
   hlBar.style.left = Math.max(8, Math.min(r.left, innerWidth - hlBar.offsetWidth - 8)) + "px";
   hlBar.style.top = Math.max(8, r.top - hlBar.offsetHeight - 8) + "px";
 }
 function bindHighlight(ta) {                             // called for every editor (see the edit function)
-  ["select", "keyup", "pointerup", "touchend", "input"].forEach(ev => ta.addEventListener(ev, () => setTimeout(() => updateHlBar(ta), 0)));
+  ["focus", "select", "keyup", "pointerup", "touchend", "input"].forEach(ev => ta.addEventListener(ev, () => setTimeout(() => updateHlBar(ta), 0)));
 }
 document.addEventListener("selectionchange", () => { const ae = document.activeElement; if (ae && ae.tagName === "TEXTAREA" && ae.closest(".card")) updateHlBar(ae); });
 
@@ -2256,6 +2656,64 @@ document.addEventListener("pointerdown", e => { if (!fileMenu.hidden && !fileMen
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeFileMenu(); });
 updateFileBtn();
 
+/* =====================================================================
+   PDF EXPORT  (one page with the whole canvas, like Apple Freeform)
+   1) buildPrintRoot() copies every card and drawing into a hidden #printRoot, in light colours, moved to the top-left corner.
+   2) A temporary @page rule gives the page exactly the size of the content (no page breaks, no scaling).
+   3) window.print() opens the browser's print window: choose "Save as PDF" as the printer.
+   ===================================================================== */
+const pdfBtn = document.getElementById("pdfBtn");
+pdfBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6m-3-3 3 3 3-3"/></svg><span>PDF</span>';
+function buildPrintRoot() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // finish any text being edited first
+  // Something selected (drag a rectangle on the canvas)? Then only that part is exported. Nothing selected: everything.
+  const part = sel.items.size + sel.strokes.size > 0;
+  const useCard = c => !part || sel.items.has(c.dataset.id), useStroke = st => !part || sel.strokes.has(st.id);
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  board.querySelectorAll(".card").forEach(c => {
+    if (!useCard(c)) return;
+    x1 = Math.min(x1, c.offsetLeft); y1 = Math.min(y1, c.offsetTop); x2 = Math.max(x2, c.offsetLeft + c.offsetWidth); y2 = Math.max(y2, c.offsetTop + c.offsetHeight);
+  });
+  strokes.forEach(st => { if (useStroke(st)) (st.pts || []).forEach(([px, py]) => { x1 = Math.min(x1, px - 6); y1 = Math.min(y1, py - 6); x2 = Math.max(x2, px + 6); y2 = Math.max(y2, py + 6); }); });
+  if (x1 === Infinity) return null;                                    // nothing to export
+  const m = 40, W = Math.ceil(x2 - x1 + 2 * m), H = Math.ceil(y2 - y1 + 2 * m);
+  document.getElementById("printRoot")?.remove(); document.getElementById("printPage")?.remove();
+  const root = document.createElement("div"); root.id = "printRoot";
+  // light colours whatever the screen theme is
+  root.style.cssText = "--bg:#fff;--card:#fff;--text:#26241f;--muted:#8a867b;--accent:#2f64e0;--link:#2f64e0;--border:#e2ded2;--dot:#d9d5c9;color-scheme:light;color:#26241f;background:#fff;position:relative;overflow:hidden;width:" + W + "px;height:" + H + "px;font:16px/1.4 system-ui,sans-serif";
+  const stageEl = document.createElement("div");                        // moves everything so the content starts at (margin, margin)
+  stageEl.style.cssText = "position:absolute;left:" + (m - x1) + "px;top:" + (m - y1) + "px;width:3000px;height:2000px";
+  const inkCopy = ink.cloneNode(true); inkCopy.removeAttribute("class"); inkCopy.style.cssText = "position:absolute;left:" + (-PAD) + "px;top:" + (-PAD) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
+  inkCopy.querySelectorAll(".sel").forEach(n => n.classList.remove("sel"));
+  [...inkCopy.children].forEach((pathNode, i) => { if (strokes[i] && !useStroke(strokes[i])) pathNode.remove(); });   // keep only the wanted drawings (paths are in the same order as strokes)
+  const cards = [...board.querySelectorAll(".card")].filter(useCard).map(c => {
+    const k = c.cloneNode(true); k.classList.remove("sel");
+    k.querySelectorAll(".acts, input.link, .addpic, .linkonly").forEach(n => n.remove());       // buttons and fields are not part of the picture
+    const it = items.find(i => i.id === c.dataset.id);
+    if (it && (it.type === "image" || it.type === "text")) k.querySelectorAll(".grip").forEach(n => n.remove());   // pictures and free text: no header bar
+    k.style.resize = "none"; return k;
+  });
+  // drawing behind or in front of the cards, as on screen
+  if (drawFront) { cards.forEach(k => stageEl.appendChild(k)); stageEl.appendChild(inkCopy); } else { stageEl.appendChild(inkCopy); cards.forEach(k => stageEl.appendChild(k)); }
+  root.appendChild(stageEl); document.body.appendChild(root);
+  const pg = document.createElement("style"); pg.id = "printPage"; pg.textContent = "@page { size: " + W + "px " + H + "px; margin: 0; }"; document.head.appendChild(pg);
+  return { W, H };
+}
+function exportPdf() {
+  if (lockedFeature("pdf")) return;                                    // Pro feature
+  const r = buildPrintRoot();
+  if (!r) return toast("The canvas is empty: nothing to export.", "OK", 3000);
+  window.addEventListener("afterprint", () => { document.getElementById("printRoot")?.remove(); document.getElementById("printPage")?.remove(); }, { once: true });
+  setTimeout(() => window.print(), 150);                                // a moment for the copied pictures to load
+}
+pdfBtn.onclick = exportPdf;
+function updatePdfBtn() {
+  const part = sel.items.size + sel.strokes.size > 0;
+  pdfBtn.querySelector("span").textContent = part ? "PDF (selection)" : "PDF";
+  pdfBtn.title = part ? "Export only the selected part as a PDF" : "Export the whole canvas as a PDF (select a part first to export only that)";
+}
+updatePdfBtn();
+
 // A page cannot write to your disk by itself: the browser requires that YOU choose the place once, with a click.
 // So when no file is linked, a small bar offers it right at the start. Once chosen, auto-save to the file is on for good.
 function offerFile() {
@@ -2293,7 +2751,56 @@ let meta = null;                                           // {id, name, updated
 const canvasName = document.getElementById("canvasName"), homeBtn = document.getElementById("homeBtn");
 
 // Draws a small picture of the canvas (cards, pictures and drawings) and returns it as a JPEG text
+/* ---------- The preview picture of a canvas (shown on the home screen) ----------
+   makeThumb() first tries to take a REAL picture of the canvas: the cards and drawings are copied, put in an SVG <foreignObject> together with the
+   page's own CSS, and drawn into a <canvas>. So the preview looks exactly like the canvas (colours, checkboxes, bold, highlights, pictures).
+   If the browser does not allow that, it falls back to the simple drawing below (makeThumbSimple). */
 async function makeThumb() {
+  try { const t = await makeThumbDom(); if (t) return t; } catch (e) { console.warn("Preview: using the simple drawing", e); }
+  return makeThumbSimple();
+}
+async function makeThumbDom() {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  board.querySelectorAll(".card").forEach(c => {
+    x1 = Math.min(x1, c.offsetLeft); y1 = Math.min(y1, c.offsetTop); x2 = Math.max(x2, c.offsetLeft + c.offsetWidth); y2 = Math.max(y2, c.offsetTop + c.offsetHeight);
+  });
+  strokes.forEach(st => (st.pts || []).forEach(([px, py]) => { x1 = Math.min(x1, px - 6); y1 = Math.min(y1, py - 6); x2 = Math.max(x2, px + 6); y2 = Math.max(y2, py + 6); }));
+  if (x1 === Infinity) return "";                                    // empty canvas: no picture
+  const W = 800, H = 500, M = 28;                                    // picture size (shown smaller, so it stays sharp) and the margin inside it
+  const k = Math.min((W - 2 * M) / Math.max(1, x2 - x1), (H - 2 * M) / Math.max(1, y2 - y1), 1.6);   // small canvases are shown a bit bigger so they stay readable
+  const ox = (W - (x2 - x1) * k) / 2 - x1 * k, oy = (H - (y2 - y1) * k) / 2 - y1 * k;
+  const root = getComputedStyle(document.documentElement), bodyCs = getComputedStyle(document.body);
+  const wrap = document.createElement("div");                        // the colours of the current theme are copied, so it looks the same as on screen
+  wrap.style.cssText = "width:" + W + "px;height:" + H + "px;overflow:hidden;position:relative;font-family:" + bodyCs.fontFamily + ";font-size:" + bodyCs.fontSize + ";line-height:" + bodyCs.lineHeight + ";"
+    + ["--bg", "--dot", "--card", "--text", "--muted", "--accent", "--link", "--border"].map(v => v + ":" + root.getPropertyValue(v)).join(";") + ";background:" + bodyCs.backgroundColor + ";color:" + bodyCs.color;
+  // (no grid dots in the preview: the home screen shows the content only, whatever the snap setting is)
+  const inner = document.createElement("div"); inner.id = "board";   // same id as the real board, so the same CSS rules apply to the copies
+  inner.style.cssText = "position:absolute;left:" + ox + "px;top:" + oy + "px;width:3000px;height:2000px;transform-origin:0 0;transform:scale(" + k + ");background:none";
+  const inkCopy = ink.cloneNode(true); inkCopy.setAttribute("class", ""); inkCopy.querySelectorAll(".sel").forEach(n => n.setAttribute("class", ""));
+  inkCopy.style.cssText = "position:absolute;left:" + (-PAD) + "px;top:" + (-PAD) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
+  const cards = [...board.querySelectorAll(".card")].map(c => {
+    const kc = c.cloneNode(true); kc.classList.remove("sel"); kc.style.resize = "none"; return kc;
+  });
+  if (drawFront) { cards.forEach(c => inner.appendChild(c)); inner.appendChild(inkCopy); } else { inner.appendChild(inkCopy); cards.forEach(c => inner.appendChild(c)); }
+  // pictures: an SVG picture cannot load other files, so local pictures are turned into data addresses; web pictures (YouTube) are left out
+  const toData = blob => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(""); r.readAsDataURL(blob); });
+  for (const im of inner.querySelectorAll("img")) {
+    if (/^(blob|data):/.test(im.src)) { try { im.src = await toData(await (await fetch(im.src)).blob()); } catch (e) { im.removeAttribute("src"); } }
+    else im.removeAttribute("src");
+  }
+  wrap.appendChild(inner);
+  const css = [...document.styleSheets].map(sh => { try { return [...sh.cssRules].map(r => r.cssText).join("\n"); } catch (e) { return ""; } }).join("\n");   // the page's own style rules
+  const style = document.createElement("style"); style.textContent = css; wrap.prepend(style);
+  const xhtml = new XMLSerializer().serializeToString(wrap);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '"><foreignObject x="0" y="0" width="100%" height="100%">' + xhtml + '</foreignObject></svg>';
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("preview image failed")); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg); });
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  c.getContext("2d").drawImage(img, 0, 0, W, H);
+  return c.toDataURL("image/jpeg", 0.85);                            // throws if the browser blocks it -> the caller uses the simple drawing
+}
+// The simple version (fallback): boxes and a few lines of text
+function makeThumbSimple() {
   const W = 480, H = 300, PAD = 16, z = zoom || 1;
   const br = board.getBoundingClientRect();
   const boxes = [...board.querySelectorAll(".card")].map(el => {
@@ -2401,6 +2908,7 @@ async function showHome() {
     .cv .shot { aspect-ratio: 8 / 5; border-radius: 14px; border: 1px solid var(--border); background: var(--card) center / cover no-repeat; cursor: pointer;
       display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; overflow: hidden;
       box-shadow: 0 1px 2px rgba(0,0,0,.05); transition: transform .18s, box-shadow .18s, border-color .18s; }
+    .cv .shot.blank { background: var(--bg); }          /* an empty canvas: plain background, no dots */
     .cv .shot:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 12px 28px rgba(0,0,0,.14); }
     .cv input { font: inherit; font-size: 15px; font-weight: 600; background: transparent; color: var(--text); border: 1px solid transparent; border-radius: 8px;
       padding: 3px 8px; margin: 0 -8px; width: calc(100% + 16px); box-sizing: border-box; }
@@ -2461,7 +2969,7 @@ async function showHome() {
   for (const m of list) {                                  // one card per canvas: picture on top, name below
     const d = make("div"); d.className = "cv";
     const shot = make("div"); shot.className = "shot";
-    if (m.thumb) shot.style.backgroundImage = "url(" + m.thumb + ")"; else shot.textContent = m.count ? "Open to create a preview" : "Empty canvas";
+    if (m.thumb) shot.style.backgroundImage = "url(" + m.thumb + ")"; else { shot.textContent = m.count ? "Open to create a preview" : "Empty canvas"; shot.classList.add("blank"); }
     shot.onclick = () => open(m.id);
     const name = make("input"); name.value = m.name; name.maxLength = 60; name.spellcheck = false; name.title = "Click to rename";
     name.onchange = async () => { const cur = (await metaGet(m.id)) || m; cur.name = name.value.trim() || "Untitled canvas"; name.value = cur.name; await metaPut(cur); };
