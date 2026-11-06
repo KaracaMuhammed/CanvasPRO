@@ -42,12 +42,12 @@
 
   /* ---------- CANVAS (scrollable, dotted background) ---------- */
   .scroller { flex: 1; overflow: auto; }
-  #board { position: absolute; left: 0; top: 0; width: 3000px; height: 2000px; --grid: 24px; --pad: 1500px; --layer-w: 6000px; --layer-h: 5000px; }   /* left/top/--pad/--layer-* are set by layoutStage() */
+  #board { position: absolute; left: 0; top: 0; width: 3000px; height: 2000px; --grid: 24px; --padx: 1500px; --pady: 1500px; --layer-w: 6000px; --layer-h: 5000px; }   /* left/top/--padx/--pady/--layer-* are set by layoutStage() */
   /* The dots are drawn by a layer that is bigger than the board (it also covers the margin), so they never stop near the edges.
      Shifted by half a tile so the dots sit exactly on multiples of the grid size (the snap points). Shown only while snapping is on (class .dots). */
-  #board::before { content: ""; display: none; position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: var(--layer-w); height: var(--layer-h);
+  #board::before { content: ""; display: none; position: absolute; left: calc(-1 * var(--padx)); top: calc(-1 * var(--pady)); width: var(--layer-w); height: var(--layer-h);
     background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px); background-size: var(--grid) var(--grid);
-    background-position: calc(var(--pad) - var(--grid) / 2) calc(var(--pad) - var(--grid) / 2); pointer-events: none; }
+    background-position: calc(var(--padx) - var(--grid) / 2) calc(var(--pady) - var(--grid) / 2); pointer-events: none; }
   #board.dots::before { display: block; }
 
   /* ---------- CARDS (notes and images) ---------- */
@@ -140,7 +140,8 @@
   /* SPLIT buttons with a small arrow (Draw and Snap to grid): same look as the other toolbar buttons, with a thin divider before the arrow */
   .bar .split.soft { border-radius: 10px; background: var(--card); }
   .bar .split.soft button { padding: 7px 14px; }
-  .bar .split.soft button.more { padding: 7px 9px; font-size: 11px; color: var(--muted); }
+  .bar .split.soft button.more { padding: 7px 10px; }
+  .bar .split.soft button.more svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s; }
   .bar .split.soft button + button { border-left: 1px solid var(--border); }
   .bar .split.soft.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }       /* lit up while the feature is on */
   .bar .split.soft.on button, .bar .split.soft button.on { color: var(--accent); background: transparent; border-color: transparent; }
@@ -149,7 +150,12 @@
   .bar #snapGrp, .bar #drawGrp { border-color: var(--border); box-shadow: none; }
   .bar #snapGrp.on, .bar #drawGrp.on { border-color: var(--accent); }
   .bar #snapGrp button, .bar #drawGrp button { color: var(--text); font-weight: 500; }
-  .bar #snapGrp button.more, .bar #drawGrp button.more { color: var(--muted); }
+  .bar #snapGrp button.more, .bar #drawGrp button.more { color: var(--text); opacity: 1; }                      /* clearly visible, not grey */
+  .bar #snapGrp button.more:hover, .bar #drawGrp button.more:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  .bar #snapGrp button.more svg, .bar #drawGrp button.more svg { stroke: currentColor; opacity: 1; width: 16px; height: 16px; stroke-width: 2.6; }   /* wins over the general icon colour (grey) */
+  .bar #snapGrp.on button.more, .bar #drawGrp.on button.more { opacity: 1; }                                      /* on: the arrow is as strong as the label */
+  .bar #snapGrp button.more.open svg, .bar #drawGrp button.more.open svg { transform: rotate(180deg); }          /* the arrow turns while the menu is open */
+  .bar #snapGrp button.more.open, .bar #drawGrp button.more.open { opacity: 1; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
   .bar #snapGrp button + button, .bar #drawGrp button + button { border-left: 1px solid var(--border); }
   .bar #snapGrp.on button, .bar #drawGrp.on button { color: var(--accent); }
   .bar #snapGrp.on button + button, .bar #drawGrp.on button + button { border-left-color: color-mix(in srgb, var(--accent) 35%, transparent); }
@@ -184,13 +190,13 @@
   #drawTools { display: inline-flex; gap: 8px; align-items: center; }
   #drawTools[hidden] { display: none; }
   /* DRAWING layer: an SVG under the cards. Pointer events only in draw mode, then it sits ON TOP of the cards. */
-  #ink { position: absolute; left: calc(-1 * var(--pad)); top: calc(-1 * var(--pad)); width: var(--layer-w); height: var(--layer-h); overflow: visible; pointer-events: none; }   /* covers the margin around the board as well */
+  #ink { position: absolute; left: calc(-1 * var(--padx)); top: calc(-1 * var(--pady)); width: var(--layer-w); height: var(--layer-h); overflow: visible; pointer-events: none; }   /* covers the margin around the board as well */
   #ink.front { z-index: 8; }                                /* drawings above the notes and pictures */
   #ink.on { z-index: 20; pointer-events: auto; cursor: crosshair; touch-action: none; }
   #ink.on.erase { cursor: cell; }
   #ink path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
   /* ---------- ZOOM: the stage has the scaled size, the board is scaled inside it ---------- */
-  /* The stage is the scrollable area: the board plus empty space all around it (PAD in the script). Its size is set by layoutStage() in the script. */
+  /* The stage is the scrollable area: the board plus empty space all around it (PADX / PADY in the script). Its size is set by layoutStage() in the script. */
   #stage { position: relative; width: 6000px; height: 5000px; }
   #board { transform-origin: 0 0; }
   /* ---------- Segmented groups (zoom) and the SPLIT save button ---------- */
@@ -229,6 +235,44 @@
   .toast i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: #9db4ff; animation: shrink linear forwards; }
   @keyframes shrink { to { width: 0; } }
   /* ---------- FREE TEXT: no card, just text. The header only shows on hover ---------- */
+  body.moving, body.moving * { user-select: none !important; -webkit-user-select: none !important; }   /* while dragging, nothing gets selected */
+  /* cue shown while you drag: soft bands on the edges of the canvas (positioned over the canvas area by the script) */
+  #edgeUi { position: fixed; pointer-events: none; z-index: 40; opacity: 0; transition: opacity .15s; }
+  #edgeUi.on { opacity: 1; }
+  #edgeUi .eg { position: absolute; display: block; }
+  #edgeUi .eg.l { left: 0; top: 0; bottom: 0; width: 70px; background: linear-gradient(90deg, rgba(47,100,224,.38), transparent); }
+  #edgeUi .eg.r { right: 0; top: 0; bottom: 0; width: 70px; background: linear-gradient(270deg, rgba(47,100,224,.38), transparent); }
+  #edgeUi .eg.t { left: 0; right: 0; top: 0; height: 70px; background: linear-gradient(180deg, rgba(47,100,224,.38), transparent); }
+  #edgeUi .eg.b { left: 0; right: 0; bottom: 0; height: 70px; background: linear-gradient(0deg, rgba(47,100,224,.38), transparent); }
+  .card.sel { z-index: 6; }                             /* a selected card is shown above the others, so you can see it */
+  .card.peek { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 6; }
+  #pickList { position: fixed; z-index: 90; width: 270px; box-sizing: border-box; padding: 6px; border-radius: 12px; pointer-events: none; opacity: 0; transition: opacity .12s;
+    background: rgba(24,24,22,.94); color: #fff; font-size: 13px; box-shadow: 0 12px 34px rgba(0,0,0,.35); }
+  #pickList.on { opacity: 1; }
+  #pickList .ph { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: rgba(255,255,255,.55); padding: 5px 8px; }
+  #pickList .pf { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; padding: 8px; border-radius: 9px; background: rgba(47,100,224,.26); border: 1px solid rgba(143,176,255,.4); color: #fff; font-size: 13px; font-weight: 500; }
+  #pickList .pf kbd { font: inherit; font-weight: 700; background: #2f64e0; color: #fff; padding: 2px 8px; border-radius: 6px; margin-right: 5px; box-shadow: 0 1px 0 rgba(255,255,255,.25) inset; }
+  #pickList .pf span:first-child kbd { animation: pfPulse 1.4s ease-in-out infinite; }
+  @keyframes pfPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(143,176,255,.6); } 50% { box-shadow: 0 0 0 5px rgba(143,176,255,0); } }
+  @media (prefers-reduced-motion: reduce) { #pickList .pf span:first-child kbd { animation: none; } }
+  #pickList .pr { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; color: rgba(255,255,255,.75); }
+  #pickList .pr b { flex: none; width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.14); text-align: center; line-height: 18px; font-size: 11px; font-weight: 600; }
+  #pickList .pr span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #pickList .pr.on { background: #2f64e0; color: #fff; }
+  #pickList .pr.on b { background: rgba(255,255,255,.3); }
+  #ctxMenu { position: fixed; z-index: 60; width: 260px; box-sizing: border-box; padding: 6px; border-radius: 14px; background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: 0 14px 40px rgba(0,0,0,.22); }
+  #ctxMenu[hidden] { display: none; }
+  #ctxMenu .ch { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 10px 4px; }
+  #ctxMenu .cr { display: flex; align-items: center; gap: 2px; border-radius: 9px; }
+  #ctxMenu .cr:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  #ctxMenu .cr.on { box-shadow: inset 3px 0 0 var(--accent); }
+  #ctxMenu button { background: none; border: 0; color: inherit; font: inherit; font-size: 14px; cursor: pointer; text-align: left; padding: 8px 10px; border-radius: 9px; }
+  #ctxMenu .cr > button:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #ctxMenu .mv { padding: 6px 8px; color: var(--muted); }
+  #ctxMenu .mv:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  body.smartkey #scroller, body.smartkey .card, body.smartkey .card *, body.smartkey #stage { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cpath d='M15 2V28M2 15H28' stroke='black' stroke-width='1'/%3E%3C/svg%3E") 15 15, crosshair !important; }  /* thin black plus, 30px: change width/height and the 15 15 hotspot to resize */               /* Alt held: a plus */
+  body.smartkey.overpick #scroller, body.smartkey.overpick .card, body.smartkey.overpick .card *, body.smartkey.overpick #stage { cursor: grab !important; }   /* over something selected: a hand */
+  body.smartkey.moving.moving, body.smartkey.moving.moving * { cursor: grabbing !important; }                                                /* while dragging it: a closed hand */
   .card.free { background: transparent; box-shadow: none; border-color: transparent; min-width: 60px; }
   .card.free:hover, .card.free:focus-within { border: 1px dashed var(--border); }
   .card.free .grip { opacity: 0; border-bottom: 0; transition: opacity .15s; }
@@ -458,9 +502,9 @@
     <button id="pasteNoteBtn" hidden title="Paste the note you copied">📋 Paste note</button>
     -->
     <!-- Snap to grid: the main button switches snapping on/off, the small arrow opens the grid sizes -->
-    <span class="split soft" id="snapGrp"><button id="snapBtn" title="Make cards click into place on the grid dots"></button><button id="snapMore" class="more" title="Grid size (spacing of the dots and of the snapping)">▾</button></span>
+    <span class="split soft" id="snapGrp"><button id="snapBtn" title="Make cards click into place on the grid dots"></button><button id="snapMore" class="more" title="Grid size (spacing of the dots and of the snapping)" aria-label="Grid size" aria-haspopup="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
     <!-- Draw: the main button switches drawing on/off, the small arrow chooses if the drawing sits in front of or behind the notes -->
-    <span class="split soft" id="drawGrp"><button id="drawBtn" title="Draw on the canvas"></button><button id="drawMore" class="more" title="Drawing options: in front of or behind the notes">▾</button></span>
+    <span class="split soft" id="drawGrp"><button id="drawBtn" title="Draw on the canvas"></button><button id="drawMore" class="more" title="Drawing options: in front of or behind the notes" aria-label="Drawing layer" aria-haspopup="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
     <span id="drawTools" hidden>
       <input type="color" id="penColor" value="#ff0040" title="Pen color">
       <select id="penSize" title="Pen size">
@@ -517,6 +561,7 @@ const KEY = "canvas-todo-v1";
 
 /* Header icons: thin line icons (SVG) in one style. Colors follow the text color. */
 const HI = {
+  pick:  '<svg viewBox="0 0 24 24"><path d="M4 4l6.2 15 2.3-6.3L19 10.4z"/><path d="m13.5 14 5 5"/></svg>',
   layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
   snap:  '<svg viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0 0 12 0V3"/><path d="M6 7h4M14 7h4"/></svg>',
   draw:  '<svg viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/><path d="M14.5 6.5l3 3"/></svg>',
@@ -723,23 +768,91 @@ async function migrateOld() {
 }
 
 // Starts the app: open the database, load everything, draw the canvas
-// Empty space around the board, in BOARD units (so it is the same at every zoom level). Things can be placed from -(PAD - MARGIN) upwards.
-const PAD = 1500, MINPOS = -(PAD - 300);
+// Empty space around the board, in BOARD units (so it is the same at every zoom level).
+// There is NO limit: PADX / PADY (space left of / above the board's top-left corner) grow by themselves when you move things further left or up,
+// and the scroll area grows to the right / down with the content. The view is kept still while that happens, so nothing jumps.
+let lastClient = null, lastButtons = 0;                   // last pointer position on screen / which mouse buttons are down
+const PAD_MIN = 1500;
+let PADX = PAD_MIN, PADY = PAD_MIN;                      // current free space on the left / top
+let MINW = 0, MINH = 0;                                  // the scroll area is never smaller than this (grown while you drag near the right / bottom edge)
+let shownPadX = PAD_MIN, shownPadY = PAD_MIN;            // the pads the screen is currently laid out with (to keep the view still when they change)
 // Top-left corner of what you currently see, in board coordinates. Used to place new cards in view.
-const viewX = () => Math.max(MINPOS, scroller.scrollLeft / zoom - PAD);
-const viewY = () => Math.max(MINPOS, scroller.scrollTop / zoom - PAD);
-// Sets the size of the scrollable area: the board (3000 x 2000) grows when you put things further right or lower, and there is always PAD of free space
-// after the farthest item, so nothing ends up glued to the edge. The dotted grid and the drawing layer cover all of it.
+const viewX = () => scroller.scrollLeft / zoom - PADX;
+const viewY = () => scroller.scrollTop / zoom - PADY;
+// Sets the size of the scrollable area: it always keeps free space (PAD_MIN) beyond the farthest item in every direction, so nothing ends up glued
+// to an edge and you can always keep going. The dotted grid and the drawing layer cover all of it.
 function layoutStage() {
-  let w = 3000, h = 2000;
-  board.querySelectorAll(".card").forEach(c => { w = Math.max(w, c.offsetLeft + c.offsetWidth + 300); h = Math.max(h, c.offsetTop + c.offsetHeight + 300); });
-  strokes.forEach(st => (st.pts || []).forEach(([px, py]) => { w = Math.max(w, px + 300); h = Math.max(h, py + 300); }));
-  const LW = 2 * PAD + w, LH = 2 * PAD + h;               // size of the whole layer in board units
+  let w = 3000, h = 2000, minX = 0, minY = 0;
+  board.querySelectorAll(".card").forEach(c => {
+    w = Math.max(w, c.offsetLeft + c.offsetWidth + 300); h = Math.max(h, c.offsetTop + c.offsetHeight + 300);
+    minX = Math.min(minX, c.offsetLeft); minY = Math.min(minY, c.offsetTop);
+  });
+  strokes.forEach(st => (st.pts || []).forEach(([px, py]) => { w = Math.max(w, px + 300); h = Math.max(h, py + 300); minX = Math.min(minX, px); minY = Math.min(minY, py); }));
+  PADX = Math.max(PADX, PAD_MIN - minX); PADY = Math.max(PADY, PAD_MIN - minY);    // things further left / up: more room on that side
+  w = Math.max(w, MINW); h = Math.max(h, MINH);
+  const LW = PADX + w + PAD_MIN, LH = PADY + h + PAD_MIN;  // size of the whole layer in board units
   stage.style.width = LW * zoom + "px"; stage.style.height = LH * zoom + "px";
-  board.style.left = PAD * zoom + "px"; board.style.top = PAD * zoom + "px";
-  board.style.setProperty("--pad", PAD + "px"); board.style.setProperty("--layer-w", LW + "px"); board.style.setProperty("--layer-h", LH + "px");
-  ink.setAttribute("viewBox", (-PAD) + " " + (-PAD) + " " + LW + " " + LH);   // the layer starts PAD before the board, but drawings keep board coordinates
+  board.style.left = PADX * zoom + "px"; board.style.top = PADY * zoom + "px";
+  board.style.setProperty("--padx", PADX + "px"); board.style.setProperty("--pady", PADY + "px"); board.style.setProperty("--layer-w", LW + "px"); board.style.setProperty("--layer-h", LH + "px");
+  ink.setAttribute("viewBox", (-PADX) + " " + (-PADY) + " " + LW + " " + LH);   // the layer starts PADX/PADY before the board, but drawings keep board coordinates
+  // the origin moved: scroll by the same amount, so what you are looking at stays exactly where it is on the screen
+  if (PADX !== shownPadX) { scroller.scrollLeft += (PADX - shownPadX) * zoom; shownPadX = PADX; }
+  if (PADY !== shownPadY) { scroller.scrollTop += (PADY - shownPadY) * zoom; shownPadY = PADY; }
 }
+// While you drag something near the edge of the window, the canvas scrolls that way by itself (the farther into the edge, the faster).
+// apply(clientX, clientY) = the drag's own "place things for this pointer position" function; it is called again after every automatic scroll.
+// Returns a function that stops it (call it when the drag ends).
+const edgeStops = new Set();                             // every automatic scroll that is running (so they can all be stopped at once)
+// The visual cue while you drag: four soft blue bands at the window edges (brighter the closer the pointer is).
+// Look: see "#edgeUi" in the CSS. Built the first time it is needed.
+let edgeUi = null;
+function getEdgeUi() {
+  if (edgeUi) return edgeUi;
+  edgeUi = document.createElement("div"); edgeUi.id = "edgeUi";
+  edgeUi.innerHTML = '<i class="eg l"></i><i class="eg r"></i><i class="eg t"></i><i class="eg b"></i>';
+  document.body.appendChild(edgeUi); return edgeUi;
+}
+// While something is being dragged, text in the page must not get selected by the moving pointer
+function beginMove() { document.body.classList.add("moving"); try { getSelection().removeAllRanges(); } catch (e) {} }
+function endMove() { document.body.classList.remove("moving"); }
+document.addEventListener("selectstart", e => { if (document.body.classList.contains("moving")) e.preventDefault(); });
+function startEdgeScroll(apply) {
+  let raf = 0, on = true;
+  const EDGE = 64, SPEED = 22;                           // edge zone width and top speed, in screen pixels
+  const from = lastClient ? [lastClient[0], lastClient[1]] : null;   // where the drag began: scrolling only starts after the pointer really moved
+  beginMove();
+  const stop = () => { on = false; cancelAnimationFrame(raf); edgeStops.delete(stop); if (edgeUi) edgeUi.classList.remove("on"); endMove(); };
+  edgeStops.add(stop);
+  const tick = () => {
+    if (!on) return;
+    const c = lastClient;
+    if (!lastButtons) return stop();                     // the mouse button is no longer pressed: never keep scrolling on your own
+    if (c && from && Math.hypot(c[0] - from[0], c[1] - from[1]) > 8) {
+      const r = scroller.getBoundingClientRect();
+      const push = (v, lo, hi) => v < lo + EDGE ? -SPEED * Math.min(1, (lo + EDGE - v) / EDGE) : v > hi - EDGE ? SPEED * Math.min(1, (v - (hi - EDGE)) / EDGE) : 0;
+      const dx = push(c[0], r.left, r.right), dy = push(c[1], r.top, r.bottom);
+      const ui = getEdgeUi(), bands = ui.children;       // show the edge bands (faint all the time during the drag, brighter near the pointer)
+      ui.style.cssText = "left:" + r.left + "px;top:" + r.top + "px;width:" + r.width + "px;height:" + r.height + "px";
+      bands[0].style.opacity = .22 + .78 * Math.max(0, -dx) / SPEED; bands[1].style.opacity = .22 + .78 * Math.max(0, dx) / SPEED;
+      bands[2].style.opacity = .22 + .78 * Math.max(0, -dy) / SPEED; bands[3].style.opacity = .22 + .78 * Math.max(0, dy) / SPEED;
+      ui.classList.add("on");
+      if (dx || dy) {
+        // make sure there is room to scroll into: more space on the left / top, a bigger area on the right / bottom
+        if (dx < 0 && scroller.scrollLeft < 400) { PADX += 800; layoutStage(); }
+        if (dy < 0 && scroller.scrollTop < 400) { PADY += 800; layoutStage(); }
+        if (dx > 0 && scroller.scrollLeft + scroller.clientWidth > scroller.scrollWidth - 400) { MINW = Math.max(MINW, scroller.scrollWidth / zoom - PADX - PAD_MIN) + 800; layoutStage(); }
+        if (dy > 0 && scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 400) { MINH = Math.max(MINH, scroller.scrollHeight / zoom - PADY - PAD_MIN) + 800; layoutStage(); }
+        scroller.scrollLeft += dx; scroller.scrollTop += dy;
+        apply(c[0], c[1]);
+      }
+    }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return stop;
+}
+// Safety nets: whatever happens to the drag (button released outside the window, window loses focus...), the automatic scrolling stops
+["pointerup", "pointercancel", "blur"].forEach(t => window.addEventListener(t, () => { lastButtons = 0; edgeStops.forEach(f => f()); }, true));
 async function boot() {
   try { db = await openDb(); try { navigator.storage.persist(); } catch (e) {} }   // persist() asks the browser not to evict our data
   catch (e) { db = null; setStatus("⚠ Storage unavailable"); }
@@ -783,15 +896,15 @@ function centerView() {
   strokes.forEach(st => (st.pts || []).forEach(([px, py]) => {   // every drawn point
     x1 = Math.min(x1, px); y1 = Math.min(y1, py); x2 = Math.max(x2, px); y2 = Math.max(y2, py);
   }));
-  if (x1 === Infinity) { setZoom(1); scroller.scrollLeft = PAD * zoom; scroller.scrollTop = PAD * zoom; return; }   // empty canvas: start at the board's top-left corner
+  if (x1 === Infinity) { setZoom(1); scroller.scrollLeft = PADX * zoom; scroller.scrollTop = PADY * zoom; return; }   // empty canvas: start at the board's top-left corner
   const view = scroller.getBoundingClientRect(), margin = 48;      // margin = free space kept around the content (screen px)
   const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
   const fit = Math.min((view.width - 2 * margin) / w, (view.height - 2 * margin) / h);   // the zoom at which everything just fits
   setZoom(Math.min(1, fit));                                       // zoom out to fit; setZoom keeps it between 25% and 250%
   // centre of the content on screen; if it still does not fit (more than the 25% minimum zoom can show) show its top-left corner instead
   const cw = w * zoom, ch = h * zoom;
-  scroller.scrollLeft = PAD * zoom + (cw + 2 * margin <= view.width  ? (x1 + x2) / 2 * zoom - view.width / 2  : x1 * zoom - margin);
-  scroller.scrollTop  = PAD * zoom + (ch + 2 * margin <= view.height ? (y1 + y2) / 2 * zoom - view.height / 2 : y1 * zoom - margin);
+  scroller.scrollLeft = PADX * zoom + (cw + 2 * margin <= view.width  ? (x1 + x2) / 2 * zoom - view.width / 2  : x1 * zoom - margin);
+  scroller.scrollTop  = PADY * zoom + (ch + 2 * margin <= view.height ? (y1 + y2) / 2 * zoom - view.height / 2 : y1 * zoom - margin);
 }
 
 // (save() now lives in the STORAGE section above)
@@ -933,7 +1046,7 @@ async function pasteNote(x, y) {
     try { const b = dataUrlToBlob(clip.blobs[id]); urlCache[id] = URL.createObjectURL(b); keep.add(id); await dbPut("images", id, b); } catch (e) {}
   }
   const n = JSON.parse(JSON.stringify(clip.data));       // a real copy: new id, same pictures (they are shared, not duplicated)
-  n.id = uid(); n.x = snap(Math.max(MINPOS, x)); n.y = snap(Math.max(MINPOS, y));
+  n.id = uid(); n.x = snap(x); n.y = snap(y);
   items.push(n); save(); render();
 }
 if (pasteNoteBtn) pasteNoteBtn.onclick = () => pasteNote(viewX() + 60 / zoom + Math.random() * 60, viewY() + 60 / zoom + Math.random() * 60);
@@ -1467,12 +1580,17 @@ function enableDrag(el, handle, item) {
     const many = sel.items.has(item.id) && sel.items.size + sel.strokes.size > 1;
     if (many) return startGroupDrag(e, handle);                        // part of a selection: everything selected moves together
     if (!sel.items.has(item.id)) clearSel();                           // dragging something that is not selected: forget the selection
-    const sx = e.clientX, sy = e.clientY, ox = item.x, oy = item.y;   // where the drag started
-    handle.onpointermove = m => {
-      item.x = snap(Math.max(MINPOS, ox + (m.clientX - sx) / zoom)); item.y = snap(Math.max(MINPOS, oy + (m.clientY - sy) / zoom)); layoutStage();   // / zoom: screen pixels -> canvas pixels; snap() = jump to the nearest dot when enabled
-      el.style.left = item.x + "px"; el.style.top = item.y + "px";
+    const [bx0, by0] = toBoard(e.clientX, e.clientY), ox = item.x, oy = item.y;   // where the drag started (pointer and card, in canvas pixels)
+    // apply(): put the card where the pointer is. Positions come from the pointer's place ON THE CANVAS (not on the screen), so the card
+    // also follows when the canvas scrolls by itself near the window edge. There is no limit: the canvas simply grows.
+    const apply = (cx, cy) => {
+      const [bx, by] = toBoard(cx, cy);
+      item.x = snap(ox + bx - bx0); item.y = snap(oy + by - by0);   // snap() = jump to the nearest dot when enabled
+      el.style.left = item.x + "px"; el.style.top = item.y + "px"; layoutStage();
     };
-    handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; save(); };
+    const stopScroll = startEdgeScroll(apply);
+    handle.onpointermove = m => apply(m.clientX, m.clientY);
+    handle.onpointerup = handle.onpointercancel = () => { stopScroll(); handle.onpointermove = handle.onpointerup = handle.onpointercancel = null; save(); };
   };
 }
 
@@ -1489,7 +1607,7 @@ file.onchange = async () => {
 };
 // Double-click empty canvas = new note right there
 // The empty margin around the board (stage) works like the board itself, so you can add things anywhere you can scroll to.
-document.getElementById("stage").ondblclick = e => { if (e.target === board || e.target === stage) addNote(...toBoard(e.clientX, e.clientY)); };
+document.getElementById("stage").ondblclick = e => { if (altHeld || e.altKey) return; if (e.target === board || e.target === stage) addNote(...toBoard(e.clientX, e.clientY)); };
 // (pasting and dropping pictures is handled in the PASTE section below)
 
 // Close the popover on outside click, Escape, or scroll
@@ -1505,10 +1623,10 @@ setInterval(() => liveChips.forEach(paint => paint()), 30000);
    Click the arrow again, click elsewhere or press Esc to close it. */
 const optMenu = document.createElement("div"); optMenu.id = "optMenu"; optMenu.hidden = true; document.body.appendChild(optMenu);
 let optFor = null;
-function closeOpt() { optMenu.hidden = true; optFor = null; }
+function closeOpt() { optMenu.hidden = true; optFor = null; document.querySelectorAll(".more.open").forEach(b => b.classList.remove("open")); }
 function openOpt(anchor, title, rows) {
   if (!optMenu.hidden && optFor === anchor) return closeOpt();      // the arrow again = close
-  closePop(); optFor = anchor; optMenu.innerHTML = "";
+  closePop(); optFor = anchor; optMenu.innerHTML = ""; anchor.classList.add("open");
   const h = document.createElement("div"); h.className = "oh"; h.textContent = title; optMenu.appendChild(h);
   rows.forEach(r => {
     const b = document.createElement("button"); b.type = "button";
@@ -1695,7 +1813,8 @@ const penColor = document.getElementById("penColor"), penSize = document.getElem
 // Layer: the whole drawing is either behind the notes/pictures (default) or in front of them. Remembered per canvas.
 const drawMore = document.getElementById("drawMore");
 let drawFront = false; try { drawFront = localStorage.getItem("canvas-todo-front-" + CANVAS_ID) === "1"; } catch (e) {}
-function updateFrontUi() { ink.classList.toggle("front", drawFront); }      // the layer is just a CSS class on the drawing
+let strokesPicked = false;                                // true while a drawing is selected (set by applySel)
+function updateFrontUi() { ink.classList.toggle("front", drawFront || strokesPicked); }   // the layer is just a CSS class on the drawing. A selected drawing always comes to the front, so you can see what you picked
 function setFront(v) { drawFront = v; try { localStorage.setItem("canvas-todo-front-" + CANVAS_ID, v ? "1" : "0"); } catch (e) {} updateFrontUi(); }
 drawMore.onclick = () => openOpt(drawMore, "Drawing layer", [
   { label: "Behind the notes", note: "Notes and pictures stay readable on top", on: !drawFront, fn: () => setFront(false) },
@@ -1737,11 +1856,11 @@ function setZoom(z, cx, cy) {
   z = Math.min(2.5, Math.max(0.25, z));
   const sr = scroller.getBoundingClientRect();
   if (cx === undefined) { cx = sr.left + sr.width / 2; cy = sr.top + sr.height / 2; }
-  const bx = (scroller.scrollLeft - PAD * zoom + cx - sr.left) / zoom, by = (scroller.scrollTop - PAD * zoom + cy - sr.top) / zoom;   // canvas point under the cursor
+  const bx = (scroller.scrollLeft - PADX * zoom + cx - sr.left) / zoom, by = (scroller.scrollTop - PADY * zoom + cy - sr.top) / zoom;   // canvas point under the cursor
   zoom = z;
   board.style.transform = "scale(" + zoom + ")";
   layoutStage();                                          // new size of the scrollable area for this zoom
-  scroller.scrollLeft = PAD * zoom + bx * zoom - (cx - sr.left); scroller.scrollTop = PAD * zoom + by * zoom - (cy - sr.top);
+  scroller.scrollLeft = PADX * zoom + bx * zoom - (cx - sr.left); scroller.scrollTop = PADY * zoom + by * zoom - (cy - sr.top);
   zoomLbl.textContent = Math.round(zoom * 100) + "%";
   try { localStorage.setItem("canvas-todo-zoom", zoom); } catch (e) {}
   closePop(); closeList();
@@ -1803,8 +1922,8 @@ function removeItem(item) {
    The picture lands under the pointer. While you type in a note, a pasted image goes inside that note.
    ===================================================================== */
 const IMG_URL_RE = /^https?:\/\/\S+\.(png|jpe?g|gif|webp|avif|svg)(\?\S*)?$/i;
-let lastClient = null;                                  // last pointer position on screen
-document.addEventListener("pointermove", e => { lastClient = [e.clientX, e.clientY]; });
+document.addEventListener("pointermove", e => { lastClient = [e.clientX, e.clientY]; lastButtons = e.buttons; });
+document.addEventListener("pointerdown", e => { lastClient = [e.clientX, e.clientY]; lastButtons = e.buttons || 1; }, true);
 function pasteSpot() {                                  // under the pointer if it is over the canvas, else top-left of the view
   const sr = scroller.getBoundingClientRect(), c = lastClient;
   if (c && c[0] > sr.left && c[0] < sr.right && c[1] > sr.top && c[1] < sr.bottom) return toBoard(c[0], c[1]);
@@ -2158,6 +2277,8 @@ const sel = { items: new Set(), strokes: new Set() };    // ids of the selected 
 function applySel() {                                    // show the selection: outline on cards, glow on drawings
   board.querySelectorAll(".card").forEach(c => c.classList.toggle("sel", sel.items.has(c.dataset.id)));
   drawAll();
+  if (!sel.items.size && !sel.strokes.size) smartPicked = false;
+  strokesPicked = sel.strokes.size > 0; updateFrontUi();   // a selected drawing comes to the front (even if it was behind the notes)
   updatePdfBtn();                                        // the PDF button says when it will export only the selection
 }
 function clearSel() { if (!sel.items.size && !sel.strokes.size) return; sel.items.clear(); sel.strokes.clear(); applySel(); }
@@ -2166,25 +2287,180 @@ function toggleSelStroke(id) { sel.strokes.has(id) ? sel.strokes.delete(id) : se
 
 // Move everything that is selected while the pointer moves (captureEl = the element that follows the pointer)
 function startGroupDrag(e, captureEl) {
-  const sx = e.clientX, sy = e.clientY;
+  const [bx0, by0] = toBoard(e.clientX, e.clientY);
   const its = items.filter(i => sel.items.has(i.id)).map(i => ({ i, x: i.x, y: i.y }));
   const sts = strokes.filter(st => sel.strokes.has(st.id)).map(st => ({ st, pts: st.pts.map(p => [p[0], p[1]]) }));
-  let minX = Infinity, minY = Infinity;                  // so nothing is pushed out of the canvas on the left / top
-  its.forEach(o => { minX = Math.min(minX, o.x); minY = Math.min(minY, o.y); });
-  sts.forEach(o => o.pts.forEach(([x, y]) => { minX = Math.min(minX, x); minY = Math.min(minY, y); }));
-  captureEl.onpointermove = m => {
-    let dx = (m.clientX - sx) / zoom, dy = (m.clientY - sy) / zoom;
+  const apply = (cx, cy) => {                            // same idea as a single card: follow the pointer's place on the canvas, no limits
+    const [bx, by] = toBoard(cx, cy);
+    let dx = bx - bx0, dy = by - by0;
     if (snapOn) { dx = Math.round(dx / GRID) * GRID; dy = Math.round(dy / GRID) * GRID; }
-    dx = Math.max(dx, -minX); dy = Math.max(dy, -minY);
     its.forEach(o => {
       o.i.x = o.x + dx; o.i.y = o.y + dy;
       const c = board.querySelector('.card[data-id="' + o.i.id + '"]');
       if (c) { c.style.left = o.i.x + "px"; c.style.top = o.i.y + "px"; }
     });
     if (sts.length) { sts.forEach(o => { o.st.pts = o.pts.map(([x, y]) => [x + dx, y + dy]); }); drawAll(); }
+    layoutStage();
   };
-  captureEl.onpointerup = captureEl.onpointercancel = () => { captureEl.onpointermove = captureEl.onpointerup = captureEl.onpointercancel = null; save(); };
+  const stopScroll = startEdgeScroll(apply);
+  captureEl.onpointermove = m => apply(m.clientX, m.clientY);
+  captureEl.onpointerup = captureEl.onpointercancel = () => { stopScroll(); captureEl.onpointermove = captureEl.onpointerup = captureEl.onpointercancel = null; save(); };
 }
+
+/* ---------- Select things that are hidden behind other things ----------
+   stackAt() lists everything under a point, from the top one down: notes, pictures, text and drawings.
+   Two ways to use it:
+   1) Alt + click: selects the top item under the pointer; click again at the same spot and it selects the next one below, and so on.
+      A selected item is shown in front while it is selected, so you can see it. Shift + Alt adds to the selection.
+   2) Right-click: a small list of everything under the pointer. Click a row to select it; the arrows on a row bring it to the front / send it to the back for good. */
+function stackAt(cx, cy) {
+  const [x, y] = toBoard(cx, cy);
+  const tol = 12 / zoom;                                  // items that are "close" (about 12 screen px) to the pointer count too, not only the ones exactly under it
+  // cards near the point, top one first. Taken from the order of the list (not from what is drawn on top right now), so the order never changes
+  // when a card is selected and shown in front: clicking again always goes one step down.
+  const cards = [...items].reverse().filter(it => {
+    const c = board.querySelector('.card[data-id="' + it.id + '"]');
+    return c && x >= it.x - tol && x <= it.x + c.offsetWidth + tol && y >= it.y - tol && y <= it.y + c.offsetHeight + tol;
+  }).map(it => ({ kind: "card", item: it }));
+  const near = st => hitStroke(st, x, y) || [[tol, 0], [-tol, 0], [0, tol], [0, -tol]].some(([dx, dy]) => hitStroke(st, x + dx, y + dy));
+  const marks = [...strokes].reverse().filter(near).map(st => ({ kind: "stroke", st }));
+  return drawFront ? [...marks, ...cards] : [...cards, ...marks];   // the layer setting decides (NOT whether a drawing is shown in front right now), so the list order stays the same
+}
+const isPicked = o => o.kind === "card" ? sel.items.has(o.item.id) : sel.strokes.has(o.st.id);
+const clip = t => t.length > 26 ? t.slice(0, 25) + "…" : t;
+function stackLabel(o) {                                 // a short name for a row of the list
+  if (o.kind === "stroke") return "Drawing · " + ({ pen: "pen", line: "line", arrow: "arrow", rect: "rectangle", ellipse: "circle", heart: "heart" }[o.st.tool || "pen"] || "drawing");
+  const it = o.item;
+  if (it.type === "image") return "Picture" + (it.text ? " · " + clip(it.text) : "");
+  const first = (it.text || "").split("\n")[0].replace(/\*\*|==[ygbpo]:|==/g, "").trim();
+  return (it.type === "text" ? "Text · " : "Note · ") + clip(first || "empty");
+}
+function pickOne(o, add) {                               // select one thing of the list (add = keep the rest of the selection)
+  if (!add) { sel.items.clear(); sel.strokes.clear(); }
+  if (o.kind === "card") { if (add && sel.items.has(o.item.id)) sel.items.delete(o.item.id); else sel.items.add(o.item.id); }
+  else { if (add && sel.strokes.has(o.st.id)) sel.strokes.delete(o.st.id); else sel.strokes.add(o.st.id); }
+  applySel();
+}
+function moveInStack(item, toFront) {                    // bring a card to the front / send it to the back for good (the order of the list is the stacking order)
+  const i = items.indexOf(item); if (i < 0) return;
+  items.splice(i, 1); toFront ? items.push(item) : items.unshift(item);
+  save(); render(); applySel();
+}
+// The list that appears next to the pointer: everything that can be selected at that spot, the picked one highlighted.
+// It cannot be clicked (clicks go through to the canvas, so clicking again picks the next one). It stays while Alt is held / Smart select is on.
+function showPickList(st, picked, x, y) {
+  let t = document.getElementById("pickList");
+  if (!t) { t = document.createElement("div"); t.id = "pickList"; document.body.appendChild(t); }
+  t.innerHTML = "<div class='ph'>Smart select · hold Alt</div>" + st.map((o, i) =>
+    "<div class='pr" + (o === picked ? " on" : "") + "'><b>" + (i + 1) + "</b><span></span></div>").join("")
+    + "<div class='pf'>" + (st.length > 1 ? "<span><kbd>Click again</kbd> next item</span>" : "") + "<span><kbd>Drag</kbd> move it</span></div>";
+  [...t.querySelectorAll(".pr span")].forEach((sp, i) => { sp.textContent = stackLabel(st[i]); });   // textContent: note text can never be read as HTML
+  t.style.left = Math.min(x + 16, innerWidth - 270) + "px"; t.style.top = Math.min(y + 16, innerHeight - 90 - st.length * 34) + "px";
+  t.classList.add("on");
+}
+const hidePickList = () => { const t = document.getElementById("pickList"); if (t) t.classList.remove("on"); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") hidePickList(); });
+window.addEventListener("blur", hidePickList);
+document.addEventListener("pointerdown", e => { if (!altHeld) hidePickList(); }, true);
+scroller.addEventListener("wheel", hidePickList, { passive: true });
+
+/* ---------- SMART SELECT: hold Alt ----------
+   While Alt is held, a click on the canvas picks what is at that spot, also things that are close to each other or piled up:
+   - click        : picks the top one; click again at the same spot: the blue highlight moves to the next one (the list itself stays the same)
+   - drag         : moves the picked thing (or the top one if nothing is picked yet) - you do not need to click its header
+   - double-click : edit the text of the picked note (it does not create a new note while Alt is held)
+   Without Alt a plain click works as usual. But once something was picked this way, you can still drag it by pressing anywhere on it. */
+let altHeld = false;                                     // is Alt being held?
+let smartPicked = false;                                 // something was picked with smart select (reset when the selection is empty)
+let lastPick = null;                                     // { st: the list, x, y }: the list of the last pick, reused when you click again at (almost) the same spot
+// The pointer in selection mode: a plus while Alt is held, a hand when it is over something that is selected (a closed hand while dragging it)
+function updateSmartCursor() {
+  const c = lastClient, over = altHeld && c && stackAt(c[0], c[1]).some(isPicked);
+  document.body.classList.toggle("overpick", !!over);
+}
+const setAlt = on => { altHeld = on; document.body.classList.toggle("smartkey", on); if (!on) { hidePickList(); lastPick = null; } updateSmartCursor(); };
+document.addEventListener("pointermove", () => { if (altHeld) updateSmartCursor(); });
+document.addEventListener("keydown", e => { if (e.key === "Alt" && !altHeld) setAlt(true); });
+document.addEventListener("keyup", e => { if (e.key === "Alt") { setAlt(false); e.preventDefault(); } });   // (preventDefault: releasing Alt must not open the browser menu)
+window.addEventListener("blur", () => setAlt(false));
+const stillThere = o => o.kind === "card" ? items.includes(o.item) : strokes.includes(o.st);
+scroller.addEventListener("pointerdown", e => {
+  if (e.button !== 0 || drawOn) return;
+  const smart = altHeld || e.altKey;
+  if (!smart && !smartPicked) return;
+  // With Alt held this is pure SELECTION mode: links, buttons and text editing are switched off, every click just picks.
+  // Without Alt, a picked item can still be dragged, but the card's own text, links, buttons and header work as usual.
+  if (!smart && e.target.closest("textarea, input, button, a, .dl, .grip")) return;
+  if (smart) { const ae = document.activeElement; if (ae && ae.closest && ae.closest("#board") && /^(TEXTAREA|INPUT)$/.test(ae.tagName)) ae.blur(); }   // a note that was being edited is closed
+  let st = stackAt(e.clientX, e.clientY);
+  if (smart && lastPick && Math.hypot(e.clientX - lastPick.x, e.clientY - lastPick.y) < 10 && lastPick.st.every(stillThere)) st = lastPick.st;   // same spot: the same list, in the same order
+  if (!st.length) { if (smart) { hidePickList(); lastPick = null; } return; }
+  const at = st.findIndex(isPicked);                      // index of the picked one (-1 = none of them)
+  if (!smart && at < 0) return;                           // without Alt: only the picked item is handled here
+  const x0 = e.clientX, y0 = e.clientY;
+  let moved = false;
+  const off = () => { window.removeEventListener("pointermove", mv, true); window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true); };
+  const mv = m => {
+    if (moved || Math.hypot(m.clientX - x0, m.clientY - y0) < 5) return;
+    moved = true; off(); hidePickList();
+    if (at < 0) pickOne(st[0], false);                    // nothing picked here yet: take the top one
+    smartPicked = true;
+    board.setPointerCapture(e.pointerId); startGroupDrag(e, board);   // drag what is picked (the whole selection moves together)
+  };
+  const up = () => {
+    off();
+    if (moved || !smart) return;
+    const next = st[(at + 1) % st.length];                // the next one down the list (or the top one); the list itself never changes order
+    pickOne(next, e.shiftKey); smartPicked = true; updateSmartCursor();
+    if (!lastPick || lastPick.st !== st) lastPick = { st, x: x0, y: y0 };
+    showPickList(st, next, lastPick.x, lastPick.y);
+  };
+  window.addEventListener("pointermove", mv, true); window.addEventListener("pointerup", up, true); window.addEventListener("pointercancel", up, true);
+  e.preventDefault(); e.stopPropagation();                // this press is handled here (no text editing, no header drag); a double-click edits the note
+  // the "click" that follows the press must not start editing the note either (that would put a text editor under the pointer)
+  const noClick = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  window.addEventListener("click", noClick, true); setTimeout(() => window.removeEventListener("click", noClick, true), 600);
+}, true);
+// a double-click edits the picked note (a single click only picks)
+scroller.addEventListener("dblclick", e => {
+  if (altHeld || e.altKey || !smartPicked) return;                        // (not while Alt is held: selection mode does not edit text)
+  if (e.target.closest("textarea, input")) return;
+  const st = stackAt(e.clientX, e.clientY).filter(o => o.kind === "card" && o.item.type !== "image");
+  const o = st.find(isPicked) || st[0];
+  if (o) { hidePickList(); render(o.item.id); }
+}, true);
+
+// Right-click: the list of everything under the pointer
+const ctx = document.createElement("div"); ctx.id = "ctxMenu"; ctx.hidden = true; document.body.appendChild(ctx);
+function closeCtx() { ctx.hidden = true; document.querySelectorAll(".card.peek").forEach(c => c.classList.remove("peek")); }
+scroller.addEventListener("contextmenu", e => {
+  if (drawOn || activeNote || e.target.closest("textarea, input")) return;      // while writing, the normal browser menu stays
+  const st = stackAt(e.clientX, e.clientY);
+  if (!st.length) return;
+  e.preventDefault();
+  hidePickList();
+  ctx.innerHTML = "<div class='ch'>Under the pointer</div>";
+  st.forEach(o => {
+    const row = document.createElement("div"); row.className = "cr" + (isPicked(o) ? " on" : "");
+    const name = document.createElement("button"); name.textContent = stackLabel(o);
+    name.onclick = () => { closeCtx(); pickOne(o, e.shiftKey); };
+    row.appendChild(name);
+    if (o.kind === "card") {
+      const el = board.querySelector('.card[data-id="' + o.item.id + '"]');
+      row.onmouseenter = () => { document.querySelectorAll(".card.peek").forEach(c => c.classList.remove("peek")); if (el) el.classList.add("peek"); };   // shows which one it is
+      const up = document.createElement("button"); up.className = "mv"; up.textContent = "↑"; up.title = "Bring to front";
+      const dn = document.createElement("button"); dn.className = "mv"; dn.textContent = "↓"; dn.title = "Send to back";
+      up.onclick = () => { closeCtx(); moveInStack(o.item, true); }; dn.onclick = () => { closeCtx(); moveInStack(o.item, false); };
+      row.append(up, dn);
+    }
+    ctx.appendChild(row);
+  });
+  ctx.hidden = false;
+  ctx.style.left = Math.min(e.clientX, innerWidth - 270) + "px"; ctx.style.top = Math.min(e.clientY, innerHeight - ctx.offsetHeight - 10) + "px";
+}, true);
+document.addEventListener("pointerdown", e => { if (!ctx.hidden && !ctx.contains(e.target)) closeCtx(); }, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeCtx(); });
+scroller.addEventListener("wheel", closeCtx, { passive: true });
 
 const marq = document.createElement("div"); marq.id = "marquee"; board.appendChild(marq);   // the selection rectangle
 stage.addEventListener("pointerdown", e => {
@@ -2199,13 +2475,15 @@ stage.addEventListener("pointerdown", e => {
   }
   if (!e.shiftKey) clearSel();                                       // empty canvas: start a rectangle (Shift keeps the old selection)
   let moved = false;
-  board.onpointermove = m => {
-    const [cx, cy] = toBoard(m.clientX, m.clientY), w = Math.abs(cx - x), h = Math.abs(cy - y);
+  const drawMarq = (px, py) => {                                     // the rectangle follows the pointer (also while the canvas scrolls by itself)
+    const [cx, cy] = toBoard(px, py), w = Math.abs(cx - x), h = Math.abs(cy - y);
     if (w + h > 4) moved = true;
     Object.assign(marq.style, { display: "block", left: Math.min(x, cx) + "px", top: Math.min(y, cy) + "px", width: w + "px", height: h + "px" });
   };
+  const stopScroll = startEdgeScroll(drawMarq);
+  board.onpointermove = m => drawMarq(m.clientX, m.clientY);
   board.onpointerup = m => {
-    board.onpointermove = board.onpointerup = null; marq.style.display = "none";
+    stopScroll(); board.onpointermove = board.onpointerup = null; marq.style.display = "none";
     if (!moved) return;
     const [cx, cy] = toBoard(m.clientX, m.clientY);
     const L = Math.min(x, cx), T = Math.min(y, cy), R = Math.max(x, cx), B = Math.max(y, cy);
@@ -2665,7 +2943,7 @@ updateFileBtn();
    ===================================================================== */
 const pdfBtn = document.getElementById("pdfBtn");
 pdfBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6m-3-3 3 3 3-3"/></svg><span>PDF</span>';
-function buildPrintRoot() {
+function buildPrintRoot(preview) {            // preview = true: only builds the page for the Free-plan preview window (no grid dots, not put on the page)
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // finish any text being edited first
   // Something selected (drag a rectangle on the canvas)? Then only that part is exported. Nothing selected: everything.
   const part = sel.items.size + sel.strokes.size > 0;
@@ -2682,7 +2960,7 @@ function buildPrintRoot() {
   const root = document.createElement("div"); root.id = "printRoot";
   // light colours whatever the screen theme is
   root.style.cssText = "--bg:#fff;--card:#fff;--text:#26241f;--muted:#8a867b;--accent:#2f64e0;--link:#2f64e0;--border:#e2ded2;--dot:#d9d5c9;color-scheme:light;color:#26241f;background:#fff;position:relative;overflow:hidden;width:" + W + "px;height:" + H + "px;font:16px/1.4 system-ui,sans-serif";
-  if (snapOn) {                                                         // snapping on = the dots are part of the PDF too (same spacing and place as on screen)
+  if (snapOn && !preview) {                                             // snapping on = the dots are part of the PDF too (same spacing and place as on screen)
     root.style.backgroundImage = "radial-gradient(#d9d5c9 1.2px, transparent 1.2px)";
     root.style.backgroundSize = GRID + "px " + GRID + "px";
     root.style.backgroundPosition = (m - x1 - GRID / 2) + "px " + (m - y1 - GRID / 2) + "px";
@@ -2690,7 +2968,7 @@ function buildPrintRoot() {
   }
   const stageEl = document.createElement("div");                        // moves everything so the content starts at (margin, margin)
   stageEl.style.cssText = "position:absolute;left:" + (m - x1) + "px;top:" + (m - y1) + "px;width:3000px;height:2000px";
-  const inkCopy = ink.cloneNode(true); inkCopy.removeAttribute("class"); inkCopy.style.cssText = "position:absolute;left:" + (-PAD) + "px;top:" + (-PAD) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
+  const inkCopy = ink.cloneNode(true); inkCopy.removeAttribute("class"); inkCopy.style.cssText = "position:absolute;left:" + (-PADX) + "px;top:" + (-PADY) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
   inkCopy.querySelectorAll(".sel").forEach(n => n.classList.remove("sel"));
   [...inkCopy.children].forEach((pathNode, i) => { if (strokes[i] && !useStroke(strokes[i])) pathNode.remove(); });   // keep only the wanted drawings (paths are in the same order as strokes)
   const cards = [...board.querySelectorAll(".card")].filter(useCard).map(c => {
@@ -2704,12 +2982,44 @@ function buildPrintRoot() {
   });
   // drawing behind or in front of the cards, as on screen
   if (drawFront) { cards.forEach(k => stageEl.appendChild(k)); stageEl.appendChild(inkCopy); } else { stageEl.appendChild(inkCopy); cards.forEach(k => stageEl.appendChild(k)); }
-  root.appendChild(stageEl); document.body.appendChild(root);
+  root.appendChild(stageEl);
+  if (preview) { root.removeAttribute("id"); root.style.display = "block"; return { W, H, root }; }   // (the id #printRoot would hide it on screen)
+  document.body.appendChild(root);
   const pg = document.createElement("style"); pg.id = "printPage"; pg.textContent = "@page { size: " + W + "px " + H + "px; margin: 0; }"; document.head.appendChild(pg);
   return { W, H };
 }
+// Free plan: no PDF, but a window shows how the PDF would look (without the grid dots), with a way to upgrade.
+function showPdfPreview() {
+  const r = buildPrintRoot(true);
+  if (!r) return toast("The canvas is empty: nothing to preview.", "OK", 3000);
+  const maxW = Math.min(760, innerWidth - 80), maxH = Math.max(160, innerHeight - 300), k = Math.min(1, maxW / r.W, maxH / r.H);
+  const ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto";
+  const card = document.createElement("div");
+  card.style.cssText = "background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:18px;max-width:100%;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.4);font-family:inherit;text-align:center";
+  card.innerHTML = "<h2 style='margin:0 0 4px;font-size:21px'>PDF preview</h2>"
+    + "<p style='margin:0 0 16px;color:var(--muted);font-size:14px'>This is how your PDF would look. Exporting a PDF is a Pro feature.</p>";
+  const frame = document.createElement("div");                         // the page, scaled down to fit, with a faint PREVIEW mark over it
+  frame.style.cssText = "text-align:left;position:relative;margin:0 auto 18px;overflow:hidden;border-radius:6px;border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.25);width:" + Math.round(r.W * k) + "px;height:" + Math.round(r.H * k) + "px;background:#fff";
+  r.root.style.transform = "scale(" + k + ")"; r.root.style.transformOrigin = "0 0";
+  frame.appendChild(r.root);
+  // Small "PREVIEW" text repeated all over the page (a tiled SVG background), so it can't be cropped out.
+  // To change it: edit the text, the font size, the spacing (tile width/height) or the opacity (fill-opacity) below.
+  const tile = "<svg xmlns='http://www.w3.org/2000/svg' width='170' height='110'><text x='85' y='55' text-anchor='middle' dominant-baseline='middle' transform='rotate(-24 85 55)' font-family='system-ui,sans-serif' font-size='15' font-weight='700' letter-spacing='3' fill='#000' fill-opacity='.11'>PREVIEW</text></svg>";
+  const mark = document.createElement("div");
+  mark.style.cssText = "position:absolute;inset:0;pointer-events:none;background:url(\"data:image/svg+xml," + encodeURIComponent(tile) + "\") repeat";
+  frame.appendChild(mark); card.appendChild(frame);
+  const up = document.createElement("button"); up.textContent = "Upgrade to export";
+  up.style.cssText = "padding:12px 22px;border-radius:12px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;margin-right:10px";
+  const no = document.createElement("button"); no.textContent = "Close";
+  no.style.cssText = "padding:12px 18px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--text);font:inherit;cursor:pointer";
+  up.onclick = () => { ov.remove(); showUpgrade("pdf"); }; no.onclick = () => ov.remove();
+  card.append(up, no); ov.appendChild(card);
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
 function exportPdf() {
-  if (lockedFeature("pdf")) return;                                    // Pro feature
+  if (ACCOUNT && (ACCOUNT.locked || []).includes("pdf")) return showPdfPreview();   // Free plan: preview only
   const r = buildPrintRoot();
   if (!r) return toast("The canvas is empty: nothing to export.", "OK", 3000);
   window.addEventListener("afterprint", () => { document.getElementById("printRoot")?.remove(); document.getElementById("printPage")?.remove(); }, { once: true });
@@ -2719,7 +3029,8 @@ pdfBtn.onclick = exportPdf;
 function updatePdfBtn() {
   const part = sel.items.size + sel.strokes.size > 0;
   pdfBtn.querySelector("span").textContent = part ? "PDF (selection)" : "PDF";
-  pdfBtn.title = part ? "Export only the selected part as a PDF" : "Export the whole canvas as a PDF (select a part first to export only that)";
+  pdfBtn.title = ACCOUNT && (ACCOUNT.locked || []).includes("pdf") ? "See how your PDF would look (exporting is a Pro feature)"
+               : part ? "Export only the selected part as a PDF" : "Export the whole canvas as a PDF (select a part first to export only that)";
 }
 updatePdfBtn();
 
@@ -2786,7 +3097,7 @@ async function makeThumbDom() {
   const inner = document.createElement("div"); inner.id = "board";   // same id as the real board, so the same CSS rules apply to the copies
   inner.style.cssText = "position:absolute;left:" + ox + "px;top:" + oy + "px;width:3000px;height:2000px;transform-origin:0 0;transform:scale(" + k + ");background:none";
   const inkCopy = ink.cloneNode(true); inkCopy.setAttribute("class", ""); inkCopy.querySelectorAll(".sel").forEach(n => n.setAttribute("class", ""));
-  inkCopy.style.cssText = "position:absolute;left:" + (-PAD) + "px;top:" + (-PAD) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
+  inkCopy.style.cssText = "position:absolute;left:" + (-PADX) + "px;top:" + (-PADY) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
   const cards = [...board.querySelectorAll(".card")].map(c => {
     const kc = c.cloneNode(true); kc.classList.remove("sel"); kc.style.resize = "none"; return kc;
   });
@@ -2974,6 +3285,7 @@ async function showHome() {
     await metaPut({ id, name, created: Date.now(), updated: Date.now(), count: 0, thumb: "" }); open(id);
   };
   grid.appendChild(nw);
+
 
   for (const m of list) {                                  // one card per canvas: picture on top, name below
     const d = make("div"); d.className = "cv";
