@@ -2492,7 +2492,8 @@ hlBar.addEventListener("pointerdown", e => {
 function hideHlBar() { hlBar.hidden = true; hlTa = null; }
 function updateHlBar(ta) {                               // show the bar above the note while it is being edited (colours only while text is selected)
   if (!ta || !ta.isConnected || document.activeElement !== ta) return hideHlBar();
-  hlTa = ta; colGrp.hidden = ta.selectionStart === ta.selectionEnd;
+  if (ta.selectionStart === ta.selectionEnd) return hideHlBar();     // nothing selected (for example a brand new note): no bar. Select some text to get it.
+  hlTa = ta; colGrp.hidden = false;
   const r = ta.closest(".card").getBoundingClientRect();
   hlBar.hidden = false;
   hlBar.style.left = Math.max(8, Math.min(r.left, innerWidth - hlBar.offsetWidth - 8)) + "px";
@@ -2681,6 +2682,12 @@ function buildPrintRoot() {
   const root = document.createElement("div"); root.id = "printRoot";
   // light colours whatever the screen theme is
   root.style.cssText = "--bg:#fff;--card:#fff;--text:#26241f;--muted:#8a867b;--accent:#2f64e0;--link:#2f64e0;--border:#e2ded2;--dot:#d9d5c9;color-scheme:light;color:#26241f;background:#fff;position:relative;overflow:hidden;width:" + W + "px;height:" + H + "px;font:16px/1.4 system-ui,sans-serif";
+  if (snapOn) {                                                         // snapping on = the dots are part of the PDF too (same spacing and place as on screen)
+    root.style.backgroundImage = "radial-gradient(#d9d5c9 1.2px, transparent 1.2px)";
+    root.style.backgroundSize = GRID + "px " + GRID + "px";
+    root.style.backgroundPosition = (m - x1 - GRID / 2) + "px " + (m - y1 - GRID / 2) + "px";
+    root.style.cssText += ";-webkit-print-color-adjust:exact;print-color-adjust:exact";
+  }
   const stageEl = document.createElement("div");                        // moves everything so the content starts at (margin, margin)
   stageEl.style.cssText = "position:absolute;left:" + (m - x1) + "px;top:" + (m - y1) + "px;width:3000px;height:2000px";
   const inkCopy = ink.cloneNode(true); inkCopy.removeAttribute("class"); inkCopy.style.cssText = "position:absolute;left:" + (-PAD) + "px;top:" + (-PAD) + "px;width:" + board.style.getPropertyValue("--layer-w") + ";height:" + board.style.getPropertyValue("--layer-h") + ";overflow:visible";
@@ -2688,9 +2695,11 @@ function buildPrintRoot() {
   [...inkCopy.children].forEach((pathNode, i) => { if (strokes[i] && !useStroke(strokes[i])) pathNode.remove(); });   // keep only the wanted drawings (paths are in the same order as strokes)
   const cards = [...board.querySelectorAll(".card")].filter(useCard).map(c => {
     const k = c.cloneNode(true); k.classList.remove("sel");
-    k.querySelectorAll(".acts, input.link, .addpic, .linkonly").forEach(n => n.remove());       // buttons and fields are not part of the picture
     const it = items.find(i => i.id === c.dataset.id);
-    if (it && (it.type === "image" || it.type === "text")) k.querySelectorAll(".grip").forEach(n => n.remove());   // pictures and free text: no header bar
+    // buttons and fields are not part of the picture. (Free text keeps its buttons, only hidden: they give the header its height, and removing them would move the text.)
+    k.querySelectorAll((it && it.type === "text" ? "" : ".acts, ") + "input.link, .addpic, .linkonly").forEach(n => n.remove());
+    if (it && it.type === "image") k.querySelectorAll(".grip").forEach(n => n.remove());                          // pictures: no header bar
+    if (it && it.type === "text") k.querySelectorAll(".grip").forEach(n => { n.style.visibility = "hidden"; });   // free text: the bar is invisible but still takes its room, so the text stays exactly where it is on screen
     k.style.resize = "none"; return k;
   });
   // drawing behind or in front of the cards, as on screen
@@ -3000,29 +3009,93 @@ function showMobileNotice() {
   document.title = "Canvas PRO";
   [...document.body.children].forEach(el => { if (el.tagName !== "SCRIPT") el.style.display = "none"; });   // hide the app
   const st = document.createElement("style");
+  // All the looks of this screen are here. Colours come from the app's theme variables, so light and dark mode both work.
   st.textContent = `
-    #mob { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 28px;
-      box-sizing: border-box; min-height: 100vh; min-height: 100dvh; color: var(--text);
-      background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, #c9a45a 16%, transparent), transparent 60%), var(--bg); }
-    #mob .wm { height: 30px; width: auto; max-width: 78vw; margin-bottom: 56px; }
-    #mob .ico { width: 84px; height: 84px; border-radius: 24px; display: grid; place-items: center; margin-bottom: 28px;
-      background: var(--card); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.10); }
-    #mob .ico svg { width: 38px; height: 38px; }
-    #mob h2 { text-wrap: balance; margin: 0 0 12px; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.02em; }
-    #mob p { margin: 0; max-width: 320px; color: var(--muted); font-size: 15.5px; line-height: 1.55; }
-    #mob .rule { width: 44px; height: 2px; border-radius: 2px; margin: 28px 0 22px; background: linear-gradient(90deg, #a97f35, #e8cb8c, #b08a3e); }
-    #mob small { color: var(--muted); font-size: 13px; }`;
+    #mob { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-sizing: border-box;
+      min-height: 100vh; min-height: 100dvh; padding: max(40px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom)); color: var(--text);
+      background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, #c9a45a 18%, transparent), transparent 62%), var(--bg); }
+    #mob .inner { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; }
+    #mob .wm { height: 26px; width: auto; max-width: 70vw; margin-bottom: 32px; }
+
+    /* the picture: a tiny canvas with three notes and a pen stroke */
+    #mob .art { position: relative; width: min(276px, 100%); height: 166px; margin-bottom: 30px; border-radius: 16px; overflow: hidden; flex: none;
+      border: 1px solid var(--border); background: radial-gradient(var(--dot) 1.2px, transparent 1.2px) 0 0 / 20px 20px, var(--card); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+    #mob .n { box-sizing: border-box; position: absolute; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.10);
+      padding: 10px; text-align: left; animation: mobfloat 6s ease-in-out infinite; }
+    #mob .n i { display: block; height: 5px; border-radius: 3px; background: var(--border); margin-bottom: 7px; }
+    #mob .n i.b { width: 70%; background: var(--muted); opacity: .55; }
+    #mob .n .row { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+    #mob .n .row i { flex: 1; margin: 0; }
+    #mob .n .row:last-child { margin-bottom: 0; }
+    #mob .n .row u { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--muted); box-sizing: border-box; }
+    #mob .n .row u.on { background: var(--accent); border-color: var(--accent); }
+    #mob .n1 { left: 14px; top: 14px; width: 120px; border-left: 3px solid #f59e0b; }
+    #mob .n2 { right: 12px; top: 28px; width: 108px; height: 60px; border-radius: 9px; padding: 0; overflow: hidden; animation-delay: -2s; background: linear-gradient(135deg, #ff6b9d, #4d7cff); }
+    #mob .n3 { left: 44px; bottom: 9px; width: 110px; animation-delay: -4s; }
+    #mob .stroke { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    @keyframes mobfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+    @media (prefers-reduced-motion: reduce) { #mob .n { animation: none; } }
+
+    /* the text */
+    #mob h2 { text-wrap: balance; margin: 0 0 14px; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.03em; }
+    #mob p { margin: 0; max-width: 310px; color: var(--muted); font-size: 15px; line-height: 1.6; text-wrap: balance; }
+    #mob .rule { width: 44px; height: 2px; border-radius: 2px; margin: 26px 0 24px; background: linear-gradient(90deg, #a97f35, #e8cb8c, #b08a3e); }
+
+    /* the button */
+    #mob .go { font: inherit; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 0 22px; border-radius: 14px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; border: 1px solid color-mix(in srgb, #a97f35 55%, transparent); color: var(--text); background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,.08); transition: transform .15s, border-color .2s; }
+    #mob .go:active { transform: scale(.97); }
+    #mob .go:focus-visible { outline: 2px solid #a97f35; outline-offset: 3px; }
+    #mob .go svg { width: 18px; height: 18px; flex: none; stroke: #a97f35; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    #mob .go.done { border-color: #22a55b; }
+    #mob .go.done svg { stroke: #22a55b; }
+    #mob .later { margin: 16px 0 0; color: var(--muted); font-size: 13px; }
+
+    /* account line at the bottom: who is signed in, and a way to sign out */
+    #mob .acct { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--border); width: 100%; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    #mob .acct b { color: var(--text); font-weight: 600; word-break: break-all; }
+    #mob .acct button { all: unset; cursor: pointer; color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+    #mob .acct button:focus-visible { outline: 2px solid #a97f35; outline-offset: 3px; border-radius: 4px; }`;
   document.head.appendChild(st);
-  const box = document.createElement("div"); box.id = "mob";
-  box.innerHTML = WORDMARK_SVG.replace("<svg ", "<svg class='wm' ") +
-    `<div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="url(#mg)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-       <defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a97f35"/><stop offset=".5" stop-color="#d9b872"/><stop offset="1" stop-color="#b08a3e"/></linearGradient></defs>
-       <rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+
+  const ICON_COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
+  const ICON_OK = '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+  const email = ACCOUNT && ACCOUNT.email ? ACCOUNT.email.replace(/[<>&"]/g, "") : "";
+  const box = document.createElement("main"); box.id = "mob";
+  box.innerHTML = '<div class="inner">' + WORDMARK_SVG.replace("<svg ", "<svg class='wm' role='img' aria-label='Canvas PRO' ") +
+    `<div class="art" aria-hidden="true">
+       <div class="n n1"><i class="b"></i><div class="row"><u class="on"></u><i></i></div><div class="row"><u class="on"></u><i></i></div><div class="row"><u></u><i></i></div></div>
+       <svg class="stroke" viewBox="0 0 276 166" preserveAspectRatio="none"><path d="M176 130 C192 108 212 148 250 124" fill="none" stroke="#ff4d7e" stroke-width="2.6" stroke-linecap="round"/></svg>
+       <div class="n n2"></div>
+       <div class="n n3"><i class="b"></i><i></i><i style="width:60%;margin:0"></i></div>
+     </div>
      <h2>Not supported on mobile yet</h2>
-     <p>Canvas PRO needs a mouse and a bigger screen for now. Open this page on a computer to use it.</p>
+     <p>Canvas PRO is built for a mouse and a big screen, so it can't run on a phone or tablet yet. Open it on a computer to get started.</p>
      <div class="rule"></div>
-     <small>Mobile support is coming later.</small>`;
+     <button class="go" id="mobShare" type="button">` + ICON_COPY + `<span role="status" aria-live="polite">Copy link for your computer</span></button>
+     <p class="later">Mobile support is coming later.</p>` +
+    (email ? `<div class="acct">Signed in as <b>${email}</b><br><button id="mobOut" type="button">Sign out</button></div>` : "") + "</div>";
   document.body.appendChild(box);
+
+  // The button: opens the phone's share sheet when there is one (so the link can be sent to a computer), otherwise copies the link.
+  const btn = document.getElementById("mobShare"), label = btn.querySelector("span"), url = location.origin + "/app";
+  const flash = (text, ok) => {                                  // shows a short message in the button, then puts the normal text back
+    label.textContent = text; btn.classList.toggle("done", !!ok); btn.firstChild.outerHTML = ok ? ICON_OK : ICON_COPY;
+    setTimeout(() => { label.textContent = "Copy link for your computer"; btn.classList.remove("done"); btn.firstChild.outerHTML = ICON_COPY; }, 2500);
+  };
+  const copyOld = () => {                                        // for browsers without the clipboard API (or pages that are not https)
+    const t = document.createElement("textarea"); t.value = url; t.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(t);
+    t.select(); let ok = false; try { ok = document.execCommand("copy"); } catch (e) {} t.remove(); return ok;
+  };
+  btn.onclick = async () => {
+    try {
+      if (navigator.share) { await navigator.share({ title: "Canvas PRO", url }); return; }
+      if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); return flash("Link copied", true); }
+    } catch (e) { if (e && e.name === "AbortError") return; }    // sharing cancelled by the person: nothing to do
+    const ok = copyOld(); flash(ok ? "Link copied" : url, ok);        // last resort: copy the old way, or just show the link so it can be copied by hand
+  };
+  const out = document.getElementById("mobOut");
+  if (out) out.onclick = async () => { try { await postJson("/api/logout"); } catch (e) {} location.href = "/"; };
 }
 
 if (BLOCK_MOBILE && isMobile()) showMobileNotice();
